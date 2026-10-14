@@ -1,10 +1,7 @@
 <script setup lang="ts">
-import { onMounted, reactive } from 'vue'
-import { toAppError, type AppError } from '../core/errors'
-import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
-import { ghToken } from '../native'
-import { fetchViewerLogin } from '../sources/github'
-import ErrorRow from './ErrorRow.vue'
+import { reactive } from 'vue'
+import IncomingLane from './IncomingLane.vue'
+import { startIncoming } from './incoming-runtime'
 
 type Tab = 'incoming' | 'outgoing' | 'agents' | 'suggestions'
 
@@ -15,48 +12,26 @@ const tabs: { id: Tab; label: string }[] = [
   { id: 'suggestions', label: 'Suggestions' },
 ]
 
-const state = reactive<{ tab: Tab; gh: 'checking' | { login: string } | AppError }>({
-  tab: 'incoming',
-  gh: 'checking',
-})
-
-async function checkGh() {
-  try {
-    state.gh = { login: await fetchViewerLogin(await ghToken()) }
-  } catch (error) {
-    state.gh = toAppError(error)
-  }
-}
-
-onMounted(() => {
-  checkGh()
-  getCurrentWebviewWindow().onFocusChanged(({ payload: focused }) => {
-    if (focused) checkGh()
-  })
-})
+const view = reactive<{ tab: Tab }>({ tab: 'incoming' })
+const incoming = startIncoming()
 </script>
 
 <template>
   <main class="panel">
     <nav class="tabs">
-      <button
-        v-for="tab in tabs"
-        :key="tab.id"
-        :class="{ active: state.tab === tab.id }"
-        @click="state.tab = tab.id"
-      >
+      <button v-for="tab in tabs" :key="tab.id" :class="{ active: view.tab === tab.id }" @click="view.tab = tab.id">
         {{ tab.label }}
+        <span v-if="tab.id === 'incoming' && incoming.state.badge > 0" class="badge">{{ incoming.state.badge }}</span>
       </button>
     </nav>
 
-    <section v-if="state.tab === 'incoming'">
-      <div v-if="state.gh === 'checking'" class="row muted">Checking GitHub CLI…</div>
-      <div v-else-if="'login' in state.gh" class="row">
-        <span class="dot" />Signed in as <strong>{{ state.gh.login }}</strong><span class="muted">via GitHub CLI</span>
-      </div>
-      <ErrorRow v-else :error="state.gh" />
-      <div class="empty">Nothing incoming yet.</div>
-    </section>
+    <IncomingLane
+      v-if="view.tab === 'incoming'"
+      :state="incoming.state"
+      :open="incoming.open"
+      :refresh="incoming.refresh"
+      :mark-seen="incoming.markSeen"
+    />
     <section v-else class="empty">Nothing here yet.</section>
   </main>
 </template>
@@ -90,22 +65,13 @@ onMounted(() => {
   color: var(--fg);
 }
 
-.row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-}
-
-.muted {
-  color: var(--muted);
-}
-
-.dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--ok);
+.badge {
+  margin-left: 4px;
+  padding: 0 5px;
+  border-radius: 8px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 10px;
 }
 
 .empty {
