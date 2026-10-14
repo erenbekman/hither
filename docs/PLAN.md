@@ -180,6 +180,13 @@ Toplam tahmini 5–7 hafta. Bir aşama bitmeden ve kapısı geçilmeden sonrakin
 | M4 · Öneriler | Kural motoru, prompt şablonları, terminal başlatma, `claude -p` özetleri, deploy-hata korelasyonu | 1–2 hafta | Bir haftada en az 3 öneri kartına gerçekten tıklandı |
 | M5 · Dağıtım | Developer ID imza + notarization, Homebrew tap, Tauri updater, tanıtım sayfası | 2–3 gün | — |
 
+**M5 uygulandı:**
+- İmza: `Developer ID Application: Eren Bekman (VSQKF92XRM)`, hardened runtime. Notarization `xcrun notarytool` + `hither-notary` keychain profili; kimlik bilgileri script'e ya da depoya girmez. Önce `.app` notarize edilip damgalanır, sonra DMG ayrıca notarize edilip damgalanır.
+- Updater: `tauri-plugin-updater`, uç nokta `releases/latest/download/latest.json`. Güncelleme paketi damgalanmış `.app`'ten üretilip minisign ile imzalanır (`~/.tauri/hither.key`). Panel açılışta ve 6 saatte bir kontrol eder; güncelleme varsa üstte "Install and restart" şeridi çıkar.
+- Homebrew: `packaging/hither.rb.template`, `erenbekman/homebrew-tap` reposuna konur (`brew install --cask erenbekman/tap/hither`). Yalnız Apple silicon: Rust Homebrew'dan kurulu olduğu için `x86_64` hedefi yok.
+- Site: `site/`, GitHub Actions ile Pages'e yayınlanır.
+- Release profili: `strip = true` yalnız son ikiliye uygulanır (`[profile.release.build-override] strip = false`); proc-macro dylib'leri strip edilince `futures_macro` metadata'sı okunamıyordu.
+
 **İlk sürümde olmayacaklar:** Windows/Linux paketleri, GitLab ve Bitbucket, Vercel ve Cloudflare deploy'ları, mobil bildirim, takım modu, sunucu tarafı her şey.
 
 ## Pre-mortem
