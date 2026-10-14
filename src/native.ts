@@ -10,3 +10,14 @@ export const revealPanel = () => invoke<void>('reveal_panel')
 export const startHookListener = (token: string) => invoke<number>('start_hook_listener', { token })
 export const claudeSettingsRead = () => invoke<string | null>('claude_settings_read')
 export const claudeSettingsWrite = (content: string) => invoke<string | null>('claude_settings_write', { content })
+export interface GitRepo {
+  root: string
+  remote: string
+}
+export const gitRepo = (path: string) => invoke<GitRepo | null>('git_repo', { path })
+export const launchClaude = (folder: string, prompt: string, attachment?: string) =>
+  invoke<void>('launch_claude', { folder, prompt, attachment: attachment ?? null })
+export const claudePrint = (folder: string | undefined, prompt: string) => invoke<string>('claude_print', { folder: folder ?? null, prompt })
+export const focusTerminal = () => invoke<void>('focus_terminal')
+export const syncTemplates = (defaults: Record<string, string>) => invoke<Record<string, string>>('sync_templates', { defaults })
+export const openTemplates = () => invoke<void>('open_templates')

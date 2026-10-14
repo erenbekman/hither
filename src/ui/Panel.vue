@@ -4,6 +4,8 @@ import { ago } from '../core/format'
 import type { Lane } from '../core/types'
 import { startBoard } from './board-runtime'
 import LaneView from './LaneView.vue'
+import { startSuggestions } from './suggestions-runtime'
+import SuggestionsView from './SuggestionsView.vue'
 
 type Tab = Lane | 'suggestions'
 
@@ -22,12 +24,13 @@ const EMPTY: Record<Lane, string> = {
 
 const view = reactive<{ tab: Tab }>({ tab: 'incoming' })
 const board = startBoard()
+const suggestions = startSuggestions({ board: board.state, settings: board.settings, siteHosts: board.siteHosts })
 const now = ref(new Date())
 let ticker: ReturnType<typeof setInterval> | undefined
 onMounted(() => (ticker = setInterval(() => (now.value = new Date()), 30_000)))
 onUnmounted(() => clearInterval(ticker))
 
-const badge = (tab: Tab) => (tab === 'suggestions' ? 0 : board.state.laneBadges[tab])
+const badge = (tab: Tab) => (tab === 'suggestions' ? suggestions.state.cards.filter((c) => c.severity !== 'info').length : board.state.laneBadges[tab])
 </script>
 
 <template>
@@ -74,7 +77,13 @@ const badge = (tab: Tab) => (tab === 'suggestions' ? 0 : board.state.laneBadges[
       :mark-seen="board.markSeen"
       :empty="EMPTY[view.tab]"
     />
-    <section v-else class="empty">Nothing here yet.</section>
+    <SuggestionsView
+      v-else
+      :state="suggestions.state"
+      :run="suggestions.run"
+      :dismiss="suggestions.dismiss"
+      :set-folder="suggestions.setFolder"
+    />
   </main>
 </template>
 

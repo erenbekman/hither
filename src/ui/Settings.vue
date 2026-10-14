@@ -5,7 +5,7 @@ import type { Store } from '@tauri-apps/plugin-store'
 import { toAppError, type AppError } from '../core/errors'
 import { DEFAULT_SETTINGS, normalizeSettings, type Settings } from '../core/settings'
 import { fetchOrganizations, KIND_ORDER, KIND_TITLES } from '../sources/github'
-import { ghToken, secretDelete, secretGet, secretSet } from '../native'
+import { ghToken, openTemplates, secretDelete, secretGet, secretSet } from '../native'
 import { FORGE_TOKEN_KEY, listForgeOrganizations, listForgeServers } from '../sources/forge'
 import { SENTRY_TOKEN_KEY } from '../sources/sentry'
 import ErrorRow from './ErrorRow.vue'
@@ -66,6 +66,19 @@ const agentLogins = computed({
 const agentBranchPrefixes = computed({
   get: () => state.settings.agentBranchPrefixes.join(', '),
   set: (text: string) => (state.settings.agentBranchPrefixes = lines(text)),
+})
+const siteLinks = computed({
+  get: () =>
+    Object.entries(state.settings.sentryProjectForSite)
+      .map(([site, project]) => `${site} = ${project}`)
+      .join('\n'),
+  set: (text: string) =>
+    (state.settings.sentryProjectForSite = Object.fromEntries(
+      text
+        .split('\n')
+        .map((line) => line.split('=').map((part) => part.trim()))
+        .filter((parts) => parts.length === 2 && parts[0] && parts[1]),
+    )),
 })
 const HOOK_LABELS: Record<HookStatus, string> = {
   installed: 'Installed',
@@ -266,7 +279,19 @@ async function save() {
           Projects <span class="hint">comma separated slugs; empty means all</span>
           <input v-model.lazy="sentryProjects" type="text" />
         </label>
+        <label class="block">
+          Forge site → Sentry project
+          <span class="hint">one per line, e.g. ustad.app = ustad-api; links new errors to the deploy before them</span>
+          <textarea v-model.lazy="siteLinks" rows="3" />
+        </label>
       </template>
+
+      <h2>Suggestions</h2>
+      <div class="block">
+        Prompt templates
+        <span class="hint">Markdown files; prompts carry only ids such as repo and PR number, never titles or logs</span>
+        <div class="line"><button type="button" @click="attempt(openTemplates)">Open templates folder</button></div>
+      </div>
 
       <h2>Claude Code</h2>
       <div class="block">

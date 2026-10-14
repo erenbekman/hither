@@ -24,7 +24,7 @@ import { announceSettingsChanged, onSettingsChanged, openSettingsStore, readSett
 
 const HEARTBEAT_MS = 30_000
 
-async function notify(specs: NotificationSpec[]) {
+export async function notify(specs: NotificationSpec[]) {
   let granted = await isPermissionGranted()
   if (!granted) granted = (await requestPermission()) === 'granted'
   if (!granted) return
@@ -172,6 +172,8 @@ export function startBoard() {
 
   return {
     state,
+    settings: () => settings,
+    siteHosts,
     hooks,
     installAgentHooks,
     open,
