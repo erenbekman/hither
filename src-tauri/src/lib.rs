@@ -1,0 +1,119 @@
+mod gh;
+mod secret;
+
+use std::sync::Mutex;
+use std::time::{Duration, Instant};
+
+use tauri::menu::{Menu, MenuItem};
+use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
+use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder, WindowEvent};
+use tauri_plugin_positioner::{Position, WindowExt};
+
+const PANEL: &str = "panel";
+const SETTINGS: &str = "settings";
+const REOPEN_GUARD: Duration = Duration::from_millis(250);
+
+struct LastHidden(Mutex<Option<Instant>>);
+
+fn toggle_panel(app: &AppHandle) {
+    let Some(panel) = app.get_webview_window(PANEL) else { return };
+    if panel.is_visible().unwrap_or(false) {
+        let _ = panel.hide();
+        return;
+    }
+    let just_hidden = app
+        .state::<LastHidden>()
+        .0
+        .lock()
+        .unwrap()
+        .is_some_and(|at| at.elapsed() < REOPEN_GUARD);
+    if just_hidden {
+        return;
+    }
+    let _ = panel.move_window_constrained(Position::TrayBottomCenter);
+    let _ = panel.show();
+    let _ = panel.set_focus();
+}
+
+fn open_settings(app: &AppHandle) {
+    if let Some(window) = app.get_webview_window(SETTINGS) {
+        let _ = window.show();
+        let _ = window.set_focus();
+        return;
+    }
+    let _ = WebviewWindowBuilder::new(app, SETTINGS, WebviewUrl::default())
+        .title("Hither Settings")
+        .inner_size(480.0, 360.0)
+        .resizable(false)
+        .focused(true)
+        .build();
+}
+
+fn setup_tray(app: &AppHandle) -> tauri::Result<()> {
+    let settings = MenuItem::with_id(app, "settings", "Settings…", true, Some("Cmd+,"))?;
+    let quit = MenuItem::with_id(app, "quit", "Quit Hither", true, Some("Cmd+Q"))?;
+    let menu = Menu::with_items(app, &[&settings, &quit])?;
+
+    TrayIconBuilder::with_id("main")
+        .icon(app.default_window_icon().unwrap().clone())
+        .tooltip("Hither")
+        .menu(&menu)
+        .show_menu_on_left_click(false)
+        .on_menu_event(|app, event| match event.id().as_ref() {
+            "settings" => open_settings(app),
+            "quit" => app.exit(0),
+            _ => {}
+        })
+        .on_tray_icon_event(|tray, event| {
+            let app = tray.app_handle();
+            tauri_plugin_positioner::on_tray_event(app, &event);
+            if let TrayIconEvent::Click {
+                button: MouseButton::Left,
+                button_state: MouseButtonState::Up,
+                ..
+            } = event
+            {
+                toggle_panel(app);
+            }
+        })
+        .build(app)?;
+    Ok(())
+}
+
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
+pub fn run() {
+    tauri::Builder::default()
+        .plugin(tauri_plugin_positioner::init())
+        .plugin(tauri_plugin_store::Builder::new().build())
+        .manage(LastHidden(Mutex::new(None)))
+        .invoke_handler(tauri::generate_handler![
+            gh::gh_token,
+            secret::secret_get,
+            secret::secret_set,
+            secret::secret_delete,
+        ])
+        .setup(|app| {
+            #[cfg(target_os = "macos")]
+            app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+            setup_tray(app.handle())?;
+            Ok(())
+        })
+        .on_window_event(|window, event| {
+            if window.label() != PANEL {
+                return;
+            }
+            match event {
+                WindowEvent::Focused(false) => {
+                    let _ = window.hide();
+                    *window.state::<LastHidden>().0.lock().unwrap() = Some(Instant::now());
+                }
+                WindowEvent::CloseRequested { api, .. } => {
+                    api.prevent_close();
+                    let _ = window.hide();
+                }
+                _ => {}
+            }
+        })
+        .run(tauri::generate_context!())
+        .expect("error while running Hither");
+}
