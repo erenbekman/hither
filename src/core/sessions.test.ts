@@ -73,9 +73,9 @@ describe('restoreSessions', () => {
 })
 
 describe('sessionSignals', () => {
-  it('turns sessions into agent signals named after the folder', () => {
+  it('turns sessions into agent signals named after the folder, titled by what Claude said', () => {
     const sessions = play([0, event('Notification', { notification_type: 'permission_prompt', message: 'Allow Bash?', session_title: 'Fix tray' })])
-    expect(sessionSignals(sessions)).toEqual([
+    expect(sessionSignals(sessions, at(1))).toEqual([
       {
         id: 'session:s1',
         source: 'claude-code',
@@ -83,10 +83,26 @@ describe('sessionSignals', () => {
         kind: 'agent-waiting',
         severity: 'attention',
         project: 'hither',
-        title: 'Waiting for you: Allow Bash?',
+        title: 'Allow Bash?',
         at: at(0).toISOString(),
         meta: { cwd: '/Users/eren/projects/hither', sessionTitle: 'Fix tray', state: 'waiting' },
       },
     ])
+  })
+
+  it('falls back to the state when Claude said nothing, and spells out errors', () => {
+    expect(sessionSignals(play([0, event('SessionStart')]), at(1))[0].title).toBe('Working')
+    expect(sessionSignals(play([0, event('StopFailure', { error: 'rate_limit' })]), at(1))[0].title).toBe('rate limit')
+  })
+
+  it('keeps a finished turn for thirty minutes, then lets it go', () => {
+    const sessions = play([0, event('UserPromptSubmit')], [2, event('Stop')])
+    expect(sessionSignals(sessions, at(31)).map((s) => s.kind)).toEqual(['agent-done'])
+    expect(sessionSignals(sessions, at(33))).toEqual([])
+  })
+
+  it('never hides a session that is waiting or working, however old', () => {
+    const waiting = play([0, event('Notification', { notification_type: 'permission_prompt' })])
+    expect(sessionSignals(waiting, at(59)).map((s) => s.kind)).toEqual(['agent-waiting'])
   })
 })

@@ -7,7 +7,7 @@ const ctx = { signal: new AbortController().signal }
 describe('claudeCodeSource', () => {
   it('reports the current sessions and the hook notices', async () => {
     const sessions = applyHookEvent({}, { session_id: 's', hook_event_name: 'SessionStart', cwd: '/x/api' }, new Date(0))
-    const source = claudeCodeSource({ sessions: () => sessions, problem: () => undefined, notices: () => ['Hooks are not installed'] })
+    const source = claudeCodeSource({ sessions: () => sessions, problem: () => undefined, notices: () => ['Hooks are not installed'], now: () => new Date(60_000) })
     const result = await source.poll(ctx)
     expect(result.signals.map((s) => s.kind)).toEqual(['agent-running'])
     expect(result.notices).toEqual(['Hooks are not installed'])

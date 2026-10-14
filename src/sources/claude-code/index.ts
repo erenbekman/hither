@@ -9,14 +9,16 @@ export function claudeCodeSource(deps: {
   sessions: () => Sessions
   problem: () => AppError | undefined
   notices: () => string[]
+  now?: () => Date
 }): Source {
+  const now = deps.now ?? (() => new Date())
   return {
     id: AGENT_SOURCE_ID,
     interval: 0,
     async poll() {
       const problem = deps.problem()
       if (problem) throw problem
-      return { signals: sessionSignals(deps.sessions()), notices: deps.notices() }
+      return { signals: sessionSignals(deps.sessions(), now()), notices: deps.notices() }
     },
   }
 }

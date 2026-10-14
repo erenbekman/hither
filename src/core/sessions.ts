@@ -28,6 +28,7 @@ export interface Session {
 export type Sessions = Record<string, Session>
 
 export const STALE_SESSION_MS = 12 * 3_600_000
+export const FINISHED_TURN_MS = 30 * 60_000
 
 const WAITING = new Set(['permission_prompt', 'idle_prompt', 'agent_needs_input', 'elicitation_dialog', 'elicitation_url_dialog'])
 
@@ -104,16 +105,18 @@ const TITLES: Record<SessionState, string> = {
   failed: 'Stopped with an error',
 }
 
-export function sessionSignals(sessions: Sessions): Signal[] {
-  return Object.values(sessions).map((session) => ({
-    id: `session:${session.id}`,
-    source: 'claude-code',
-    lane: 'agents',
-    kind: `agent-${session.state}`,
-    severity: session.state === 'failed' ? 'critical' : session.state === 'waiting' ? 'attention' : 'info',
-    project: session.cwd.split('/').filter(Boolean).pop() ?? session.cwd,
-    title: session.message ? `${TITLES[session.state]}: ${session.message}` : TITLES[session.state],
-    at: session.since,
-    meta: { cwd: session.cwd, sessionTitle: session.title, state: session.state },
-  }))
+export function sessionSignals(sessions: Sessions, now: Date): Signal[] {
+  return Object.values(sessions)
+    .filter((session) => session.state !== 'done' || now.getTime() - Date.parse(session.since) <= FINISHED_TURN_MS)
+    .map((session) => ({
+      id: `session:${session.id}`,
+      source: 'claude-code',
+      lane: 'agents',
+      kind: `agent-${session.state}`,
+      severity: session.state === 'failed' ? 'critical' : session.state === 'waiting' ? 'attention' : 'info',
+      project: session.cwd.split('/').filter(Boolean).pop() ?? session.cwd,
+      title: !session.message ? TITLES[session.state] : session.state === 'failed' ? session.message.replace(/_/g, ' ') : session.message,
+      at: session.since,
+      meta: { cwd: session.cwd, sessionTitle: session.title, state: session.state },
+    }))
 }

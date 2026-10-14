@@ -260,4 +260,21 @@ describe('createBoard', () => {
     expect(github.poll).toHaveBeenCalledTimes(1)
     expect(agents.poll).toHaveBeenCalledTimes(2)
   })
+
+  it('never counts ambient signals as unseen, but treats them as new again once they turn loud', async () => {
+    const session = (kind: string, severity: Signal['severity']): Signal => ({
+      ...signal(1, kind, 'claude-code'),
+      lane: 'agents',
+      severity,
+    })
+    const order = { ...ORDER, agents: ['agent-waiting', 'agent-done'] }
+    const agents = fakeSource('claude-code', [ok([session('agent-done', 'info')]), ok([session('agent-done', 'info')]), ok([session('agent-waiting', 'attention')])])
+    const { state, deps, board } = setup([agents], { order, ambient: (s) => s.kind === 'agent-done' })
+    await board.refresh()
+    expect(state.unseen).toEqual({})
+    await board.refresh()
+    await board.refresh()
+    expect(state.unseen[session('agent-waiting', 'attention').id]).toBe(true)
+    expect(notified(deps)).toHaveLength(1)
+  })
 })

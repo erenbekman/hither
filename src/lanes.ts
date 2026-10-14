@@ -39,6 +39,10 @@ export function isLoud(signal: Signal): boolean {
   return signal.severity !== 'info'
 }
 
+export function isAmbient(signal: Signal): boolean {
+  return signal.source === AGENT_SOURCE_ID && signal.kind === 'agent-done'
+}
+
 export function describe(signal: Signal): string {
   if (signal.source === 'forge') return describeDeployment(signal)
   if (signal.source === 'sentry') return describeIssue(signal)

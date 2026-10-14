@@ -41,6 +41,7 @@ export interface BoardDeps {
   settings: () => Settings
   order: Record<Lane, readonly string[]>
   isLoud: (signal: Signal) => boolean
+  ambient?: (signal: Signal) => boolean
   describe: (signal: Signal) => string
   recovery: RecoveryRule
   now?: () => Date
@@ -74,7 +75,12 @@ export function createBoard(state: BoardState, deps: BoardDeps) {
 
   function updateUnseen() {
     const shown = LANES.flatMap((lane) => state.lanes[lane].flatMap((section) => section.signals))
-    state.unseen = Object.fromEntries(deps.seen.unseen(shown).map((signal) => [signal.id, true as const]))
+    state.unseen = Object.fromEntries(
+      deps.seen
+        .unseen(shown)
+        .filter((signal) => !deps.ambient?.(signal))
+        .map((signal) => [signal.id, true as const]),
+    )
     for (const lane of LANES) {
       state.laneBadges[lane] = state.lanes[lane]
         .flatMap((section) => section.signals)

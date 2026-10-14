@@ -12,7 +12,7 @@ import { SeenStore } from '../core/seen-store'
 import { applyHookEvent, pruneSessions, restoreSessions, type HookEvent, type Sessions } from '../core/sessions'
 import { DEFAULT_SETTINGS, type Settings } from '../core/settings'
 import type { Source } from '../core/types'
-import { describe, isLoud, LANE_ORDER, sourceLanes } from '../lanes'
+import { describe, isAmbient, isLoud, LANE_ORDER, sourceLanes } from '../lanes'
 import { ghToken, openUrl, revealPanel, secretGet, setBadge, startHookListener } from '../native'
 import { AGENT_SOURCE_ID, claudeCodeSource } from '../sources/claude-code'
 import { CI_RECOVERY, githubSource } from '../sources/github'
@@ -128,6 +128,7 @@ export function startBoard() {
       settings: () => settings,
       order: LANE_ORDER,
       isLoud,
+      ambient: isAmbient,
       describe,
       recovery: CI_RECOVERY,
     })
