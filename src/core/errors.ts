@@ -4,6 +4,9 @@ export type AppError =
   | { kind: 'gh-timeout' }
   | { kind: 'github-unauthorized' }
   | { kind: 'github-forbidden' }
+  | { kind: 'github-rate-limited'; resetAt: string }
+  | { kind: 'github-graphql'; message: string }
+  | { kind: 'github-parse'; message: string }
   | { kind: 'github-status'; status: number }
   | { kind: 'network'; message: string }
   | { kind: 'unknown'; message: string }
@@ -14,6 +17,9 @@ const KNOWN_KINDS = new Set<string>([
   'gh-timeout',
   'github-unauthorized',
   'github-forbidden',
+  'github-rate-limited',
+  'github-graphql',
+  'github-parse',
   'github-status',
   'network',
 ])
@@ -25,6 +31,9 @@ export function toAppError(error: unknown): AppError {
   if (error instanceof Error) return { kind: 'unknown', message: error.message }
   return { kind: 'unknown', message: String(error) }
 }
+
+const clock = (iso: string) =>
+  new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
 
 export function errorText(error: AppError): string {
   switch (error.kind) {
@@ -38,6 +47,12 @@ export function errorText(error: AppError): string {
       return 'GitHub no longer accepts this sign-in'
     case 'github-forbidden':
       return 'GitHub refused the request. An organization may require SSO or an IP allow list.'
+    case 'github-rate-limited':
+      return `Rate limit reached · resets ${clock(error.resetAt)}`
+    case 'github-graphql':
+      return `GitHub error: ${error.message}`
+    case 'github-parse':
+      return 'Unexpected response from GitHub'
     case 'github-status':
       return `GitHub answered with HTTP ${error.status}`
     case 'network':

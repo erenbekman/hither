@@ -18,8 +18,15 @@ export interface Ctx {
   signal: AbortSignal
 }
 
+export interface PollResult {
+  signals: Signal[]
+  notices: string[]
+  account?: string
+  retryAt?: string
+}
+
 export interface Source {
   id: string
   interval: number
-  poll(ctx: Ctx): Promise<Signal[]>
+  poll(ctx: Ctx): Promise<PollResult>
 }
