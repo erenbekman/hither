@@ -14,9 +14,10 @@ const tabs: { id: Tab; label: string }[] = [
   { id: 'suggestions', label: 'Suggestions' },
 ]
 
-const EMPTY: Record<'incoming' | 'outgoing', string> = {
+const EMPTY: Record<Lane, string> = {
   incoming: 'Nothing waiting on you.',
   outgoing: 'All green.',
+  agents: 'No Claude Code sessions or agent pull requests.',
 }
 
 const view = reactive<{ tab: Tab }>({ tab: 'incoming' })
@@ -54,8 +55,18 @@ const badge = (tab: Tab) => (tab === 'suggestions' ? 0 : board.state.laneBadges[
       </button>
     </header>
 
+    <div v-if="view.tab === 'agents' && board.hooks.status && board.hooks.status !== 'installed'" class="setup">
+      <span>
+        {{ board.hooks.status === 'missing' ? 'Claude Code hooks are not installed.' : 'Claude Code hooks are out of date.' }}
+        <span class="muted">Adds Hither's hooks to ~/.claude/settings.json after a backup; your other hooks stay.</span>
+      </span>
+      <button :disabled="board.hooks.busy" @click="board.installAgentHooks()">
+        {{ board.hooks.busy ? 'Installing…' : board.hooks.status === 'missing' ? 'Install hooks' : 'Update hooks' }}
+      </button>
+    </div>
+
     <LaneView
-      v-if="view.tab === 'incoming' || view.tab === 'outgoing'"
+      v-if="view.tab !== 'suggestions'"
       :key="view.tab"
       :lane="view.tab"
       :state="board.state"
@@ -164,6 +175,34 @@ const badge = (tab: Tab) => (tab === 'suggestions' ? 0 : board.state.laneBadges[
   .icon.spinning {
     animation-duration: 2.5s;
   }
+}
+
+.setup {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: var(--notice-bg);
+  color: var(--notice-fg);
+}
+
+.setup .muted {
+  display: block;
+  font-size: 11px;
+}
+
+.setup button {
+  flex: none;
+  padding: 4px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--accent);
+  color: #fff;
+  font: inherit;
+}
+
+.setup button:disabled {
+  opacity: 0.6;
 }
 
 .empty {

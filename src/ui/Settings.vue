@@ -9,7 +9,9 @@ import { ghToken, secretDelete, secretGet, secretSet } from '../native'
 import { FORGE_TOKEN_KEY, listForgeOrganizations, listForgeServers } from '../sources/forge'
 import { SENTRY_TOKEN_KEY } from '../sources/sentry'
 import ErrorRow from './ErrorRow.vue'
-import { openSettingsStore, readSettings, writeSettings } from './settings-store'
+import type { HookStatus } from '../core/claude-settings'
+import { installHooks, readHookStatus, uninstallHooks } from './hooks'
+import { announceSettingsChanged, openSettingsStore, readSettings, writeSettings } from './settings-store'
 
 const state = reactive<{
   settings: Settings
@@ -18,6 +20,9 @@ const state = reactive<{
   forgeServers: { id: string; name: string }[]
   tokens: Record<string, boolean>
   tokenInput: Record<string, string>
+  hooks?: HookStatus
+  hooksBlocked: boolean
+  backup?: string
   loaded: boolean
   saved: boolean
   errors: AppError[]
@@ -28,6 +33,7 @@ const state = reactive<{
   forgeServers: [],
   tokens: {},
   tokenInput: {},
+  hooksBlocked: false,
   loaded: false,
   saved: false,
   errors: [],
@@ -53,6 +59,19 @@ const sentryProjects = computed({
   get: () => state.settings.sentryProjects.join(', '),
   set: (text: string) => (state.settings.sentryProjects = lines(text)),
 })
+const agentLogins = computed({
+  get: () => state.settings.agentLogins.join(', '),
+  set: (text: string) => (state.settings.agentLogins = lines(text)),
+})
+const agentBranchPrefixes = computed({
+  get: () => state.settings.agentBranchPrefixes.join(', '),
+  set: (text: string) => (state.settings.agentBranchPrefixes = lines(text)),
+})
+const HOOK_LABELS: Record<HookStatus, string> = {
+  installed: 'Installed',
+  missing: 'Not installed',
+  outdated: 'Out of date',
+}
 const allOrganizations = computed(() => [...new Set([...state.organizations, ...state.settings.organizations])])
 
 function toggle(list: string[], value: string, on: boolean): string[] {
@@ -99,6 +118,22 @@ async function forgetToken(key: string) {
   })
 }
 
+async function refreshHookStatus() {
+  await attempt(async () => {
+    const { status, blocked } = await readHookStatus()
+    state.hooks = status
+    state.hooksBlocked = blocked
+  })
+}
+
+async function changeHooks(install: boolean) {
+  await attempt(async () => {
+    state.backup = (await (install ? installHooks() : uninstallHooks())) ?? undefined
+    await announceSettingsChanged()
+  })
+  await refreshHookStatus()
+}
+
 async function chooseForgeOrg(slug: string) {
   state.settings.forgeOrg = slug
   state.settings.forgeServers = []
@@ -118,6 +153,7 @@ onMounted(async () => {
   await attempt(async () => {
     state.organizations = await fetchOrganizations(await ghToken())
   })
+  await refreshHookStatus()
   await loadForge()
 })
 
@@ -232,6 +268,28 @@ async function save() {
         </label>
       </template>
 
+      <h2>Claude Code</h2>
+      <div class="block">
+        Hooks in ~/.claude/settings.json
+        <span class="hint">
+          {{ state.hooks ? HOOK_LABELS[state.hooks] : 'Checking…' }} · Hither listens on 127.0.0.1 only; your other hooks stay as they are
+        </span>
+        <div class="line">
+          <button type="button" @click="changeHooks(true)">{{ state.hooks === 'missing' ? 'Install hooks' : 'Reinstall hooks' }}</button>
+          <button v-if="state.hooks && state.hooks !== 'missing'" type="button" @click="changeHooks(false)">Remove hooks</button>
+        </div>
+        <span v-if="state.backup" class="hint">Previous file saved as {{ state.backup }}</span>
+        <span v-if="state.hooksBlocked" class="hint warn">allowedHttpHookUrls does not include http://127.0.0.1:47811/hook</span>
+      </div>
+      <label class="block">
+        Agent accounts <span class="hint">pull requests by these logins show under Agents</span>
+        <input v-model.lazy="agentLogins" type="text" />
+      </label>
+      <label class="block">
+        Agent branch prefixes <span class="hint">pull requests from these branches show under Agents</span>
+        <input v-model.lazy="agentBranchPrefixes" type="text" />
+      </label>
+
       <h2>Display</h2>
       <label v-for="kind in KIND_ORDER" :key="kind" class="line">
         <input
@@ -305,6 +363,10 @@ select,
 textarea {
   font: inherit;
   padding: 4px 6px;
+}
+
+.warn {
+  color: var(--error-fg);
 }
 
 .number {

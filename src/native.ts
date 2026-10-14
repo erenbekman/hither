@@ -7,3 +7,6 @@ export const secretDelete = (key: string) => invoke<void>('secret_delete', { key
 export const openUrl = (url: string) => invoke<void>('open_url', { url })
 export const setBadge = (count: number) => invoke<void>('set_badge', { count })
 export const revealPanel = () => invoke<void>('reveal_panel')
+export const startHookListener = (token: string) => invoke<number>('start_hook_listener', { token })
+export const claudeSettingsRead = () => invoke<string | null>('claude_settings_read')
+export const claudeSettingsWrite = (content: string) => invoke<string | null>('claude_settings_write', { content })

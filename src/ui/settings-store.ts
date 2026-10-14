@@ -13,7 +13,9 @@ export async function readSettings(store: Store): Promise<Settings> {
 export async function writeSettings(store: Store, settings: Settings): Promise<void> {
   for (const [key, value] of Object.entries(settings)) await store.set(key, value)
   await store.save()
-  await emit(SETTINGS_CHANGED)
+  await announceSettingsChanged()
 }
+
+export const announceSettingsChanged = () => emit(SETTINGS_CHANGED)
 
 export const onSettingsChanged = (handler: () => void) => listen(SETTINGS_CHANGED, handler)
