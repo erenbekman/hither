@@ -27,8 +27,29 @@ export const response = {
     },
     review: { issueCount: 1, nodes: [pr(31, 'frank')] },
     changesRequested: { issueCount: 1, nodes: [pr(41, 'bob')] },
-    myPullRequests: { issueCount: 2, nodes: [pr(41, 'bob'), pr(42, 'bob')] },
-    rateLimit: { limit: 5000, remaining: 4990, resetAt: '2026-10-14T13:00:00Z' },
+    myPullRequests: {
+      issueCount: 2,
+      nodes: [
+        pr(41, 'bob', 'User', { commits: { nodes: [{ commit: { statusCheckRollup: { state: 'FAILURE' } } }] } }),
+        pr(42, 'bob', 'User', { commits: { nodes: [{ commit: { statusCheckRollup: { state: 'SUCCESS' } } }] } }),
+      ],
+    },
+    w0: {
+      nameWithOwner: 'bob/site',
+      defaultBranchRef: {
+        name: 'main',
+        target: {
+          oid: 'abc123',
+          url: 'https://github.com/bob/site/commit/abc123',
+          messageHeadline: 'Bump deps',
+          committedDate: '2026-10-14T11:00:00Z',
+          author: { user: { login: 'bob' }, name: 'Bob' },
+          statusCheckRollup: { state: 'ERROR' },
+        },
+      },
+    },
+    w1: null,
+    rateLimit: { limit: 5000, remaining: 4990, resetAt: '2026-10-14T13:00:00Z', cost: 1 },
   },
 }
 

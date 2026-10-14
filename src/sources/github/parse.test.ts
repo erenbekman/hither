@@ -73,4 +73,22 @@ describe('parseResponse', () => {
       expect.objectContaining({ kind: 'github-parse', message: 'missing prs' }),
     )
   })
+
+  it('reads the check state of your pull requests and the watched branches', () => {
+    const snapshot = parseResponse(response, RESET, ['bob/site', 'bob/gone'])
+    expect(snapshot.searches.myPullRequests.map((item) => item.ci)).toEqual(['FAILURE', 'SUCCESS'])
+    expect(snapshot.branches).toEqual([
+      {
+        repository: 'bob/site',
+        branch: 'main',
+        url: 'https://github.com/bob/site/commit/abc123',
+        message: 'Bump deps',
+        author: 'bob',
+        committedDate: '2026-10-14T11:00:00Z',
+        ci: 'ERROR',
+      },
+    ])
+    expect(snapshot.missingRepos).toEqual(['bob/gone'])
+    expect(snapshot.rateLimit.cost).toBe(1)
+  })
 })

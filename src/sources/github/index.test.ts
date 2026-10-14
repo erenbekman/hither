@@ -12,7 +12,9 @@ describe('githubSource', () => {
     const result = await source.poll(ctx)
     expect(result.account).toBe('bob')
     expect(result.retryAt).toBeUndefined()
-    const counts = Object.fromEntries(['pr', 'issue', 'review-requested', 'changes-requested', 'my-pr'].map((kind) => [kind, result.signals.filter((s) => s.kind === kind).length]))
+    const counts = Object.fromEntries(
+      ['pr', 'issue', 'review-requested', 'changes-requested', 'my-pr'].map((kind) => [kind, result.signals.filter((s) => s.kind === kind).length]),
+    )
     expect(counts).toEqual({ pr: 3, issue: 1, 'review-requested': 1, 'changes-requested': 1, 'my-pr': 2 })
     const review = result.signals.find((s) => s.kind === 'review-requested')
     expect(review).toMatchObject({ lane: 'incoming', severity: 'attention', project: 'bob/tools', actor: 'frank' })
@@ -38,5 +40,17 @@ describe('githubSource', () => {
     const body = withData({ rateLimit: { limit: 5000, remaining: 0, resetAt: '2026-10-14T13:00:00Z' } })
     const result = await githubSource({ token: async () => 't', settings: () => DEFAULT_SETTINGS, fetchFn: answer(body) }).poll(ctx)
     expect(result.retryAt).toBe('2026-10-14T13:00:00Z')
+  })
+
+  it('adds check signals for your pull requests and the watched branches', async () => {
+    const settings = { ...DEFAULT_SETTINGS, watchedRepos: ['bob/site', 'bob/gone'] }
+    const result = await githubSource({ token: async () => 't', settings: () => settings, fetchFn: answer(response) }).poll(ctx)
+    const outgoing = result.signals.filter((s) => s.lane === 'outgoing')
+    expect(outgoing.map((s) => [s.kind, s.severity, s.id])).toEqual([
+      ['ci-failed', 'attention', 'ci:https://github.com/bob/tools/pull/41'],
+      ['ci-passed', 'info', 'ci:https://github.com/bob/tools/pull/42'],
+      ['ci-main-failed', 'critical', 'ci:branch:bob/site'],
+    ])
+    expect(result.notices).toContain('Watched repository bob/gone was not found')
   })
 })

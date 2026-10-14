@@ -15,6 +15,17 @@ export interface Item {
   isDraft: boolean
   authorLogin: string
   authorIsBot: boolean
+  ci?: string
+}
+
+export interface Branch {
+  repository: string
+  branch: string
+  url: string
+  message: string
+  author?: string
+  committedDate: string
+  ci?: string
 }
 
 export interface Snapshot {
@@ -22,7 +33,9 @@ export interface Snapshot {
   organizations: string[]
   searches: Record<SearchKey, Item[]>
   truncated: SearchKey[]
-  rateLimit: { limit: number; remaining: number; resetAt: string }
+  branches: Branch[]
+  missingRepos: string[]
+  rateLimit: { limit: number; remaining: number; resetAt: string; cost?: number }
   warnings: string[]
 }
 
@@ -33,7 +46,7 @@ const fail = (message: string): never => {
   throw { kind: 'github-parse', message } satisfies AppError
 }
 
-export function parseResponse(root: unknown, rateLimitResetAt: string): Snapshot {
+export function parseResponse(root: unknown, rateLimitResetAt: string, watched: string[] = []): Snapshot {
   if (!isObject(root)) fail('root is not an object')
   const body = root as Json
 
@@ -73,6 +86,14 @@ export function parseResponse(root: unknown, rateLimitResetAt: string): Snapshot
   }
   const searches = Object.fromEntries(SEARCH_KEYS.map((key) => [key, search(key)])) as Record<SearchKey, Item[]>
 
+  const branches: Branch[] = []
+  const missingRepos: string[] = []
+  watched.forEach((repo, i) => {
+    const branch = toBranch(data[`w${i}`])
+    if (branch) branches.push(branch)
+    else missingRepos.push(repo)
+  })
+
   const limit = isObject(data.rateLimit) ? data.rateLimit : fail('missing rateLimit')
   if (typeof limit.limit !== 'number' || typeof limit.remaining !== 'number' || typeof limit.resetAt !== 'string') {
     fail('malformed rateLimit')
@@ -83,7 +104,14 @@ export function parseResponse(root: unknown, rateLimitResetAt: string): Snapshot
     organizations,
     searches,
     truncated,
-    rateLimit: { limit: limit.limit as number, remaining: limit.remaining as number, resetAt: limit.resetAt as string },
+    branches,
+    missingRepos,
+    rateLimit: {
+      limit: limit.limit as number,
+      remaining: limit.remaining as number,
+      resetAt: limit.resetAt as string,
+      cost: typeof limit.cost === 'number' ? limit.cost : undefined,
+    },
     warnings,
   }
 }
@@ -113,5 +141,37 @@ function toItem(node: Json, type: Item['type']): Item | undefined {
     isDraft: node.isDraft === true,
     authorLogin: author.login,
     authorIsBot: author.__typename === 'Bot' || author.login.endsWith('[bot]'),
+    ci: rollupState(firstNode(node.commits)?.commit),
+  }
+}
+
+function firstNode(connection: unknown): Json | undefined {
+  if (!isObject(connection) || !Array.isArray(connection.nodes)) return undefined
+  const node = connection.nodes.at(-1)
+  return isObject(node) ? node : undefined
+}
+
+function rollupState(commit: unknown): string | undefined {
+  if (!isObject(commit) || !isObject(commit.statusCheckRollup)) return undefined
+  const state = commit.statusCheckRollup.state
+  return typeof state === 'string' ? state : undefined
+}
+
+function toBranch(repository: unknown): Branch | undefined {
+  if (!isObject(repository) || typeof repository.nameWithOwner !== 'string') return undefined
+  const ref = repository.defaultBranchRef
+  if (!isObject(ref) || typeof ref.name !== 'string' || !isObject(ref.target)) return undefined
+  const commit = ref.target
+  if (typeof commit.url !== 'string' || typeof commit.committedDate !== 'string') return undefined
+  const author = isObject(commit.author) ? commit.author : {}
+  const login = isObject(author.user) && typeof author.user.login === 'string' ? author.user.login : undefined
+  return {
+    repository: repository.nameWithOwner,
+    branch: ref.name,
+    url: commit.url,
+    message: typeof commit.messageHeadline === 'string' ? commit.messageHeadline : '',
+    author: login ?? (typeof author.name === 'string' ? author.name : undefined),
+    committedDate: commit.committedDate,
+    ci: rollupState(commit),
   }
 }

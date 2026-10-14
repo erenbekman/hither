@@ -2,13 +2,24 @@ import type { AppError } from '../../core/errors'
 import type { Settings } from '../../core/settings'
 import type { PollResult, Signal, Source } from '../../core/types'
 import { fetchSnapshot } from './client'
-import type { Item, SearchKey } from './parse'
+import type { Branch, Item, SearchKey } from './parse'
 import { buildQueries } from './query'
 
 export const KIND_ORDER = ['changes-requested', 'review-requested', 'pr', 'issue', 'my-pr'] as const
 export type GitHubKind = (typeof KIND_ORDER)[number]
 
 export const QUIET_KINDS: readonly string[] = ['my-pr']
+
+export const CI_KINDS = ['ci-main-failed', 'ci-failed', 'ci-fixed'] as const
+
+export const CI_RECOVERY = {
+  passing: 'ci-passed',
+  failing: ['ci-main-failed', 'ci-failed'],
+  recovered: 'ci-fixed',
+  visibleMs: 30 * 60_000,
+} as const
+
+const FAILED = new Set(['FAILURE', 'ERROR'])
 
 export const KIND_TITLES: Record<GitHubKind, string> = {
   'changes-requested': 'Changes Requested',
@@ -42,9 +53,59 @@ export function toSignal(item: Item, kind: GitHubKind): Signal {
   }
 }
 
+function ciState(state: string | undefined): 'failed' | 'passed' | undefined {
+  if (state === undefined) return undefined
+  if (FAILED.has(state)) return 'failed'
+  return state === 'SUCCESS' ? 'passed' : undefined
+}
+
+export function pullRequestCi(item: Item): Signal | undefined {
+  const state = ciState(item.ci)
+  if (!state) return undefined
+  return {
+    id: `ci:${item.url}`,
+    source: 'github',
+    lane: 'outgoing',
+    kind: state === 'failed' ? 'ci-failed' : 'ci-passed',
+    severity: state === 'failed' ? 'attention' : 'info',
+    project: item.repository,
+    title: item.title,
+    url: `${item.url}/checks`,
+    actor: item.authorLogin,
+    at: item.createdAt,
+    meta: { number: item.number },
+  }
+}
+
+export function branchCi(branch: Branch): Signal | undefined {
+  const state = ciState(branch.ci)
+  if (!state) return undefined
+  return {
+    id: `ci:branch:${branch.repository}`,
+    source: 'github',
+    lane: 'outgoing',
+    kind: state === 'failed' ? 'ci-main-failed' : 'ci-passed',
+    severity: state === 'failed' ? 'critical' : 'info',
+    project: branch.repository,
+    title: branch.message,
+    url: branch.url,
+    actor: branch.author,
+    at: branch.committedDate,
+    meta: { branch: branch.branch },
+  }
+}
+
 export function describeSignal(signal: Signal): string {
-  const what = signal.meta?.type === 'issue' ? 'issue' : 'pull request'
-  return `New ${what} #${signal.meta?.number ?? ''}`.trim()
+  switch (signal.kind) {
+    case 'ci-main-failed':
+      return `${signal.meta?.branch ?? 'main'} is red`
+    case 'ci-failed':
+      return `Checks failed on #${signal.meta?.number}`
+    default: {
+      const what = signal.meta?.type === 'issue' ? 'issue' : 'pull request'
+      return `New ${what} #${signal.meta?.number ?? ''}`.trim()
+    }
+  }
 }
 
 export function githubSource(deps: {
@@ -62,11 +123,21 @@ export function githubSource(deps: {
       if (queries.allowListEmpty) return { signals: [], notices: [...notices, 'No repositories selected'] }
 
       const token = await deps.token()
-      const snapshot = await fetchSnapshot(token, queries, { fetchFn: deps.fetchFn, signal: ctx.signal })
+      const watched = deps.settings().watchedRepos
+      const snapshot = await fetchSnapshot(token, queries, { fetchFn: deps.fetchFn, signal: ctx.signal, watched })
 
       const signals = (Object.keys(SEARCH_KIND) as SearchKey[]).flatMap((key) =>
         snapshot.searches[key].map((item) => toSignal(item, SEARCH_KIND[key])),
       )
+      for (const item of snapshot.searches.myPullRequests) {
+        const ci = pullRequestCi(item)
+        if (ci) signals.push(ci)
+      }
+      for (const branch of snapshot.branches) {
+        const ci = branchCi(branch)
+        if (ci) signals.push(ci)
+      }
+      for (const repo of snapshot.missingRepos) notices.push(`Watched repository ${repo} was not found`)
       for (const key of snapshot.truncated) notices.push(`${KIND_TITLES[SEARCH_KIND[key]]}: more than 100 found, showing the newest 100`)
       notices.push(...snapshot.warnings)
 

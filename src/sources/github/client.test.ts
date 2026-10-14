@@ -25,6 +25,16 @@ describe('buildRequest', () => {
   })
 })
 
+describe('watched repositories', () => {
+  it('passes owner and name as variables, never inside the query text', () => {
+    const request = buildRequest('t', queries, ['acme/api', 'bob/site'])
+    const { query, variables } = JSON.parse(request.body as string)
+    expect(variables).toMatchObject({ w0o: 'acme', w0n: 'api', w1o: 'bob', w1n: 'site' })
+    expect(query).toContain('w1: repository(owner: $w1o, name: $w1n)')
+    expect(query).not.toContain('acme')
+  })
+})
+
 describe('validate', () => {
   it('turns 401 into an expired sign-in', () => {
     expect(() => validate(401, new Headers(), now)).toThrow(expect.objectContaining({ kind: 'github-unauthorized' }))

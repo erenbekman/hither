@@ -1,4 +1,5 @@
 import type { AppError } from '../../core/errors'
+import { resetDate } from '../../core/http'
 import { parseResponse, SEARCH_LIMIT, type Snapshot } from './parse'
 import type { Queries } from './query'
 
@@ -6,25 +7,44 @@ export const ENDPOINT = 'https://api.github.com/graphql'
 export const TIMEOUT_MS = 15_000
 
 const itemFields = 'number title url createdAt author { login __typename } repository { nameWithOwner }'
-const prSearch = (alias: string) =>
-  `${alias}: search(query: $${alias}, type: ISSUE, first: $first) { issueCount nodes { ... on PullRequest { ${itemFields} isDraft } } }`
+const rollup = 'statusCheckRollup { state }'
+const prSearch = (alias: string, extra = '') =>
+  `${alias}: search(query: $${alias}, type: ISSUE, first: $first) { issueCount nodes { ... on PullRequest { ${itemFields} isDraft ${extra} } } }`
 
-export const DOCUMENT = `query($prs: String!, $issues: String!, $review: String!, $changesRequested: String!, $myPullRequests: String!, $first: Int!) {
+export function document(watched: number): string {
+  const repoVars = Array.from({ length: watched }, (_, i) => `, $w${i}o: String!, $w${i}n: String!`).join('')
+  const repos = Array.from(
+    { length: watched },
+    (_, i) =>
+      `w${i}: repository(owner: $w${i}o, name: $w${i}n) { nameWithOwner defaultBranchRef { name target { ... on Commit { oid url messageHeadline committedDate author { user { login } name } ${rollup} } } } }`,
+  ).join('\n  ')
+  return `query($prs: String!, $issues: String!, $review: String!, $changesRequested: String!, $myPullRequests: String!, $first: Int!${repoVars}) {
   viewer { login organizations(first: 50) { nodes { login } } }
   ${prSearch('prs')}
   issues: search(query: $issues, type: ISSUE, first: $first) { issueCount nodes { ... on Issue { ${itemFields} } } }
   ${prSearch('review')}
   ${prSearch('changesRequested')}
-  ${prSearch('myPullRequests')}
+  ${prSearch('myPullRequests', `commits(last: 1) { nodes { commit { ${rollup} } } }`)}
+  ${repos}
   rateLimit { limit remaining resetAt cost }
 }`
+}
 
-export function buildRequest(token: string, queries: Queries, signal?: AbortSignal): RequestInit {
+export function buildRequest(token: string, queries: Queries, watched: string[] = [], signal?: AbortSignal): RequestInit {
+  const repoVariables = Object.fromEntries(
+    watched.flatMap((repo, i) => {
+      const [owner, name] = repo.split('/')
+      return [
+        [`w${i}o`, owner],
+        [`w${i}n`, name],
+      ]
+    }),
+  )
   return {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      query: DOCUMENT,
+      query: document(watched.length),
       variables: {
         prs: queries.prs,
         issues: queries.issues,
@@ -32,18 +52,11 @@ export function buildRequest(token: string, queries: Queries, signal?: AbortSign
         changesRequested: queries.changesRequested,
         myPullRequests: queries.myPullRequests,
         first: SEARCH_LIMIT,
+        ...repoVariables,
       },
     }),
     signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(TIMEOUT_MS)]) : AbortSignal.timeout(TIMEOUT_MS),
   }
-}
-
-export function resetDate(headers: Headers, now: Date): string {
-  const retryAfter = Number(headers.get('retry-after') ?? NaN)
-  if (Number.isFinite(retryAfter)) return new Date(now.getTime() + retryAfter * 1000).toISOString()
-  const reset = Number(headers.get('x-ratelimit-reset') ?? NaN)
-  if (Number.isFinite(reset)) return new Date(reset * 1000).toISOString()
-  return new Date(now.getTime() + 3_600_000).toISOString()
 }
 
 export function validate(status: number, headers: Headers, now: Date): void {
@@ -61,11 +74,16 @@ export function validate(status: number, headers: Headers, now: Date): void {
 export async function fetchSnapshot(
   token: string,
   queries: Queries,
-  { fetchFn = fetch, signal, now = () => new Date() }: { fetchFn?: typeof fetch; signal?: AbortSignal; now?: () => Date } = {},
+  {
+    fetchFn = fetch,
+    signal,
+    watched = [],
+    now = () => new Date(),
+  }: { fetchFn?: typeof fetch; signal?: AbortSignal; watched?: string[]; now?: () => Date } = {},
 ): Promise<Snapshot> {
   let response: Response
   try {
-    response = await fetchFn(ENDPOINT, buildRequest(token, queries, signal))
+    response = await fetchFn(ENDPOINT, buildRequest(token, queries, watched, signal))
   } catch (error) {
     throw { kind: 'network', message: error instanceof Error ? error.message : String(error) } satisfies AppError
   }
@@ -77,5 +95,5 @@ export async function fetchSnapshot(
   } catch {
     throw { kind: 'github-parse', message: 'body is not JSON' } satisfies AppError
   }
-  return parseResponse(body, resetDate(response.headers, now()))
+  return parseResponse(body, resetDate(response.headers, now()), watched)
 }
