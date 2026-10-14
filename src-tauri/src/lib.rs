@@ -1,5 +1,7 @@
 mod gh;
+mod process;
 mod hooks;
+mod launch;
 mod secret;
 
 use std::process::Command;
@@ -130,6 +132,12 @@ pub fn run() {
             hooks::start_hook_listener,
             hooks::claude_settings_read,
             hooks::claude_settings_write,
+            launch::git_repo,
+            launch::launch_claude,
+            launch::claude_print,
+            launch::focus_terminal,
+            launch::sync_templates,
+            launch::open_templates,
         ])
         .setup(|app| {
             #[cfg(target_os = "macos")]
