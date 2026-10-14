@@ -1,20 +1,18 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, reactive, ref } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
 import { ago } from '../core/format'
 import type { Lane } from '../core/types'
+import { openSettings } from '../native'
 import { startBoard } from './board-runtime'
+import Banner from './components/Banner.vue'
+import Mark from './components/Mark.vue'
+import Segmented, { type SegmentItem } from './components/Segmented.vue'
 import LaneView from './LaneView.vue'
 import { startSuggestions } from './suggestions-runtime'
 import SuggestionsView from './SuggestionsView.vue'
+import { startUpdates } from './update-runtime'
 
 type Tab = Lane | 'suggestions'
-
-const tabs: { id: Tab; label: string }[] = [
-  { id: 'incoming', label: 'Incoming' },
-  { id: 'outgoing', label: 'Outgoing' },
-  { id: 'agents', label: 'Agents' },
-  { id: 'suggestions', label: 'Suggestions' },
-]
 
 const EMPTY: Record<Lane, string> = {
   incoming: 'Nothing waiting on you.',
@@ -24,31 +22,45 @@ const EMPTY: Record<Lane, string> = {
 
 const view = reactive<{ tab: Tab }>({ tab: 'incoming' })
 const board = startBoard()
+const updates = startUpdates({ periodic: true })
 const suggestions = startSuggestions({ board: board.state, settings: board.settings, siteHosts: board.siteHosts })
 const now = ref(new Date())
 let ticker: ReturnType<typeof setInterval> | undefined
 onMounted(() => (ticker = setInterval(() => (now.value = new Date()), 30_000)))
 onUnmounted(() => clearInterval(ticker))
 
-const badge = (tab: Tab) => (tab === 'suggestions' ? suggestions.state.cards.filter((c) => c.severity !== 'info').length : board.state.laneBadges[tab])
+const laneCritical = (lane: Lane) =>
+  board.state.lanes[lane].some((section) => section.signals.some((s) => s.severity === 'critical' && board.state.unseen[s.id]))
+
+const tabs = computed<SegmentItem[]>(() => [
+  { id: 'incoming', label: 'Incoming', badge: board.state.laneBadges.incoming, critical: laneCritical('incoming') },
+  { id: 'outgoing', label: 'Outgoing', badge: board.state.laneBadges.outgoing, critical: laneCritical('outgoing') },
+  { id: 'agents', label: 'Agents', badge: board.state.laneBadges.agents, critical: laneCritical('agents') },
+  {
+    id: 'suggestions',
+    label: 'Suggestions',
+    badge: suggestions.state.cards.filter((c) => c.severity !== 'info').length,
+    critical: suggestions.state.cards.some((c) => c.severity === 'critical'),
+  },
+])
+
+const showHookBanner = computed(() => view.tab === 'agents' && board.hooks.status !== undefined && board.hooks.status !== 'installed')
 </script>
 
 <template>
   <main class="panel">
-    <nav class="tabs">
-      <button v-for="tab in tabs" :key="tab.id" :class="{ active: view.tab === tab.id }" @click="view.tab = tab.id">
-        {{ tab.label }}
-        <span v-if="badge(tab.id) > 0" class="badge">{{ badge(tab.id) }}</span>
-      </button>
-    </nav>
+    <div class="top">
+      <Segmented :items="tabs" :model-value="view.tab" @update:model-value="view.tab = $event as Tab" />
+    </div>
 
-    <header class="bar">
-      <span v-if="board.state.account" class="account"><span class="dot" />{{ board.state.account }}</span>
+    <header class="account">
+      <Mark />
+      <span v-if="board.state.account" class="name">{{ board.state.account }}</span>
       <span v-else class="muted">Connecting…</span>
+      <span v-if="board.state.lastRefresh" class="muted num">· {{ ago(board.state.lastRefresh, now) }}</span>
       <span class="spacer" />
-      <span v-if="board.state.lastRefresh" class="muted">Updated {{ ago(board.state.lastRefresh, now) }}</span>
       <button
-        class="icon"
+        class="icon-button refresh"
         :class="{ spinning: board.state.refreshing }"
         :title="board.state.refreshing ? 'Refreshing…' : 'Refresh'"
         :disabled="board.state.refreshing"
@@ -56,23 +68,41 @@ const badge = (tab: Tab) => (tab === 'suggestions' ? suggestions.state.cards.fil
       >
         ↻
       </button>
+      <button class="icon-button" title="Settings" @click="openSettings()">⚙︎</button>
     </header>
 
-    <div v-if="view.tab === 'agents' && board.hooks.status && board.hooks.status !== 'installed'" class="setup">
-      <span>
-        {{ board.hooks.status === 'missing' ? 'Claude Code hooks are not installed.' : 'Claude Code hooks are out of date.' }}
-        <span class="muted">Adds Hither's hooks to ~/.claude/settings.json after a backup; your other hooks stay.</span>
-      </span>
-      <button :disabled="board.hooks.busy" @click="board.installAgentHooks()">
-        {{ board.hooks.busy ? 'Installing…' : board.hooks.status === 'missing' ? 'Install hooks' : 'Update hooks' }}
-      </button>
-    </div>
+    <Banner
+      v-if="updates.state.available"
+      tone="action"
+      :text="`Hither ${updates.state.available.version} is available`"
+      :detail="`You have ${updates.state.current}.`"
+    >
+      <template #action>
+        <button class="button primary" :disabled="updates.state.installing" @click="updates.install()">
+          {{ updates.state.installing ? 'Installing…' : 'Install and restart' }}
+        </button>
+      </template>
+    </Banner>
+
+    <Banner
+      v-if="showHookBanner"
+      tone="action"
+      :text="board.hooks.status === 'missing' ? 'Claude Code hooks are not installed' : 'Claude Code hooks are out of date'"
+      detail="Adds Hither's hooks to ~/.claude/settings.json after a backup; your other hooks stay."
+    >
+      <template #action>
+        <button class="button primary" :disabled="board.hooks.busy" @click="board.installAgentHooks()">
+          {{ board.hooks.busy ? 'Installing…' : board.hooks.status === 'missing' ? 'Install' : 'Update' }}
+        </button>
+      </template>
+    </Banner>
 
     <LaneView
       v-if="view.tab !== 'suggestions'"
       :key="view.tab"
       :lane="view.tab"
       :state="board.state"
+      :now="now"
       :open="board.open"
       :mark-seen="board.markSeen"
       :empty="EMPTY[view.tab]"
@@ -80,6 +110,7 @@ const badge = (tab: Tab) => (tab === 'suggestions' ? suggestions.state.cards.fil
     <SuggestionsView
       v-else
       :state="suggestions.state"
+      :now="now"
       :run="suggestions.run"
       :dismiss="suggestions.dismiss"
       :set-folder="suggestions.setFolder"
@@ -92,85 +123,38 @@ const badge = (tab: Tab) => (tab === 'suggestions' ? suggestions.state.cards.fil
   display: flex;
   flex-direction: column;
   height: 100vh;
+  border-radius: 12px;
+  overflow: hidden;
 }
 
-.tabs {
-  display: flex;
-  gap: 2px;
-  padding: 8px;
-  border-bottom: 1px solid var(--line);
-}
-
-.tabs button {
-  flex: 1;
-  padding: 4px 0;
-  border: 0;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--muted);
-  font: inherit;
-}
-
-.tabs button.active {
-  background: var(--line);
-  color: var(--fg);
-}
-
-.badge {
-  margin-left: 4px;
-  padding: 0 5px;
-  border-radius: 8px;
-  background: var(--accent);
-  color: #fff;
-  font-size: 10px;
-}
-
-.bar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 12px;
-  border-bottom: 1px solid var(--line);
+.top {
+  padding: 8px 8px 4px;
 }
 
 .account {
   display: flex;
   align-items: center;
   gap: 6px;
+  padding: 4px 8px 6px 12px;
+  border-bottom: 0.5px solid var(--separator);
+}
+
+.name {
+  font-size: 12.5px;
   font-weight: 600;
 }
 
-.dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--ok);
+.muted {
+  color: var(--fg-3);
+  font-size: 11.5px;
 }
 
 .spacer {
   flex: 1;
 }
 
-.muted {
-  color: var(--muted);
-}
-
-.icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: var(--muted);
-  font-size: 15px;
-  line-height: 1;
-}
-
-.icon.spinning {
-  color: var(--accent);
+.refresh.spinning {
+  color: var(--blue);
   animation: spin 0.9s linear infinite;
 }
 
@@ -181,42 +165,8 @@ const badge = (tab: Tab) => (tab === 'suggestions' ? suggestions.state.cards.fil
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .icon.spinning {
+  .refresh.spinning {
     animation-duration: 2.5s;
   }
-}
-
-.setup {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 12px;
-  background: var(--notice-bg);
-  color: var(--notice-fg);
-}
-
-.setup .muted {
-  display: block;
-  font-size: 11px;
-}
-
-.setup button {
-  flex: none;
-  padding: 4px 10px;
-  border: 0;
-  border-radius: 6px;
-  background: var(--accent);
-  color: #fff;
-  font: inherit;
-}
-
-.setup button:disabled {
-  opacity: 0.6;
-}
-
-.empty {
-  padding: 24px 12px;
-  color: var(--muted);
-  text-align: center;
 }
 </style>

@@ -5,3 +5,7 @@ src-tauri/target/
 src-tauri/gen/
 .DS_Store
 *.log
+release/
+.superpowers/
+src-tauri/icons/android/
+src-tauri/icons/ios/

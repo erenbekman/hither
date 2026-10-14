@@ -8,9 +8,10 @@ use std::process::Command;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
+use tauri::image::Image;
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
-use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder, WindowEvent};
+use tauri::{AppHandle, Manager, TitleBarStyle, WebviewUrl, WebviewWindowBuilder, WindowEvent};
 use tauri_plugin_positioner::{Position, WindowExt};
 
 const PANEL: &str = "panel";
@@ -50,6 +51,16 @@ fn reveal_panel(app: AppHandle) {
 }
 
 #[tauri::command]
+fn open_settings_window(app: AppHandle) {
+    open_settings(&app);
+}
+
+#[tauri::command]
+fn restart_app(app: AppHandle) {
+    app.restart();
+}
+
+#[tauri::command]
 fn set_badge(app: AppHandle, count: u32) {
     if let Some(tray) = app.tray_by_id(TRAY) {
         let _ = tray.set_title((count > 0).then(|| format!(" {count}")));
@@ -76,7 +87,10 @@ fn open_settings(app: &AppHandle) {
     }
     let _ = WebviewWindowBuilder::new(app, SETTINGS, WebviewUrl::default())
         .title("Hither Settings")
-        .inner_size(480.0, 640.0)
+        .inner_size(520.0, 480.0)
+        .min_inner_size(520.0, 360.0)
+        .title_bar_style(TitleBarStyle::Overlay)
+        .hidden_title(true)
         .focused(true)
         .build();
 }
@@ -87,7 +101,8 @@ fn setup_tray(app: &AppHandle) -> tauri::Result<()> {
     let menu = Menu::with_items(app, &[&settings, &quit])?;
 
     TrayIconBuilder::with_id(TRAY)
-        .icon(app.default_window_icon().unwrap().clone())
+        .icon(Image::from_bytes(include_bytes!("../icons/tray-template@2x.png"))?)
+        .icon_as_template(true)
         .tooltip("Hither")
         .menu(&menu)
         .show_menu_on_left_click(false)
@@ -119,6 +134,7 @@ pub fn run() {
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_http::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(LastHidden(Mutex::new(None)))
         .manage(hooks::Listener::default())
         .invoke_handler(tauri::generate_handler![
@@ -128,6 +144,8 @@ pub fn run() {
             secret::secret_delete,
             reveal_panel,
             set_badge,
+            restart_app,
+            open_settings_window,
             open_url,
             hooks::start_hook_listener,
             hooks::claude_settings_read,

@@ -21,3 +21,5 @@ export const claudePrint = (folder: string | undefined, prompt: string) => invok
 export const focusTerminal = () => invoke<void>('focus_terminal')
 export const syncTemplates = (defaults: Record<string, string>) => invoke<Record<string, string>>('sync_templates', { defaults })
 export const openTemplates = () => invoke<void>('open_templates')
+export const restartApp = () => invoke<void>('restart_app')
+export const openSettings = () => invoke<void>('open_settings_window')

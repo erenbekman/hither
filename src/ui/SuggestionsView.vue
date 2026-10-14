@@ -1,22 +1,20 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, reactive, ref } from 'vue'
+import { reactive } from 'vue'
 import { ago } from '../core/format'
 import type { Suggestion, SuggestionAction } from '../core/suggestions'
-import ErrorRow from './ErrorRow.vue'
+import Banner from './components/Banner.vue'
+import Mark from './components/Mark.vue'
 import type { SuggestionsState } from './suggestions-runtime'
 
 defineProps<{
   state: SuggestionsState
+  now: Date
   run: (card: Suggestion, action: SuggestionAction) => void
   dismiss: (card: Suggestion) => void
   setFolder: (cardId: string, repo: string, path: string) => void
 }>()
 
-const now = ref(new Date())
 const folderInput = reactive<Record<string, string>>({})
-let ticker: ReturnType<typeof setInterval> | undefined
-onMounted(() => (ticker = setInterval(() => (now.value = new Date()), 30_000)))
-onUnmounted(() => clearInterval(ticker))
 
 function label(action: SuggestionAction): string {
   switch (action.kind) {
@@ -35,11 +33,12 @@ function label(action: SuggestionAction): string {
 <template>
   <div class="suggestions">
     <div class="list">
-      <article v-for="card in state.cards" :key="card.id" class="card" :class="card.severity">
+      <article v-for="card in state.cards" :key="card.id" class="card">
         <header>
+          <span class="status" :class="card.severity" />
           <span class="title">{{ card.title }}</span>
-          <span class="age">{{ ago(card.at, now) }}</span>
-          <button class="close" title="Hide" @click="dismiss(card)">×</button>
+          <span class="age num">{{ ago(card.at, now) }}</span>
+          <button class="icon-button close" title="Hide" @click="dismiss(card)">×</button>
         </header>
         <p v-if="card.detail" class="detail">{{ card.detail }}</p>
 
@@ -47,6 +46,7 @@ function label(action: SuggestionAction): string {
           <button
             v-for="(action, i) in card.actions"
             :key="i"
+            class="button"
             :class="{ primary: i === 0 }"
             :disabled="state.busy[card.id]"
             :title="action.kind === 'summarize' ? 'Sends the pull request to Claude (claude -p, read-only tools)' : undefined"
@@ -59,29 +59,38 @@ function label(action: SuggestionAction): string {
           Summarize sends this pull request to Claude.
         </p>
 
-        <form v-if="state.needsFolder[card.id]" class="folder" @submit.prevent="setFolder(card.id, state.needsFolder[card.id], folderInput[card.id] ?? '')">
+        <form
+          v-if="state.needsFolder[card.id]"
+          class="folder"
+          @submit.prevent="setFolder(card.id, state.needsFolder[card.id], folderInput[card.id] ?? '')"
+        >
           <label>
             Where is {{ state.needsFolder[card.id] }} on this Mac?
-            <input v-model="folderInput[card.id]" type="text" placeholder="/Users/you/code/repo" />
+            <input v-model="folderInput[card.id]" class="text-input" type="text" placeholder="/Users/you/code/repo" />
           </label>
-          <button type="submit">Save</button>
+          <button class="button" type="submit">Save</button>
         </form>
 
-        <ErrorRow v-if="state.errors[card.id]" :error="state.errors[card.id]" />
-        <pre v-if="state.summaries[card.id]" class="summary">{{ state.summaries[card.id].text }}</pre>
+        <Banner v-if="state.errors[card.id]" tone="error" :error="state.errors[card.id]" class="card-banner" />
+        <pre v-if="state.summaries[card.id]" class="summary selectable">{{ state.summaries[card.id].text }}</pre>
       </article>
 
-      <div v-if="state.cards.length === 0" class="empty">No suggestions right now.</div>
+      <div v-if="state.cards.length === 0" class="empty">
+        <Mark :size="32" tone="muted" />
+        <span>No suggestions right now.</span>
+      </div>
     </div>
-    <footer class="footer">{{ state.clicksThisWeek }} suggestion{{ state.clicksThisWeek === 1 ? '' : 's' }} acted on in the last 7 days</footer>
+    <footer class="footer num">
+      {{ state.clicksThisWeek }} suggestion{{ state.clicksThisWeek === 1 ? '' : 's' }} acted on in the last 7 days
+    </footer>
   </div>
 </template>
 
 <style scoped>
 .suggestions {
   display: flex;
-  flex-direction: column;
   flex: 1;
+  flex-direction: column;
   min-height: 0;
 }
 
@@ -93,96 +102,79 @@ function label(action: SuggestionAction): string {
 
 .card {
   margin-bottom: 8px;
-  padding: 8px 10px;
-  border: 1px solid var(--line);
-  border-left: 3px solid var(--accent);
+  padding: 9px 10px 10px;
   border-radius: 8px;
-}
-
-.card.attention {
-  border-left-color: var(--warn);
-}
-
-.card.critical {
-  border-left-color: var(--error-fg);
+  background: var(--fill);
+  box-shadow: inset 0 0 0 0.5px var(--separator);
 }
 
 header {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 8px;
+}
+
+.status {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--blue);
+}
+
+.status.attention {
+  background: var(--orange);
+}
+
+.status.critical {
+  background: var(--red);
 }
 
 .title {
   flex: 1;
+  min-width: 0;
+  font-size: 12.5px;
   font-weight: 600;
 }
 
 .age,
-.detail,
 .note,
 .footer {
-  color: var(--muted);
-}
-
-.age,
-.note,
-.footer {
+  color: var(--fg-3);
   font-size: 11px;
 }
 
+.close {
+  width: 18px;
+  height: 18px;
+  margin: -2px -4px -2px 0;
+}
+
 .detail {
-  margin: 2px 0 0;
+  margin: 2px 0 0 15px;
   overflow: hidden;
+  color: var(--fg-2);
+  font-size: 11.5px;
   white-space: nowrap;
   text-overflow: ellipsis;
 }
 
-button {
-  font: inherit;
-  color: inherit;
-}
-
-.close {
-  padding: 0 2px;
-  border: 0;
-  background: transparent;
-  color: var(--muted);
-}
-
 .actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 6px;
-  margin-top: 8px;
-}
-
-.actions button,
-.folder button {
-  padding: 3px 10px;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  background: transparent;
-}
-
-.actions button.primary {
-  border-color: var(--accent);
-  background: var(--accent);
-  color: #fff;
-}
-
-.actions button:disabled {
-  opacity: 0.6;
+  margin: 9px 0 0 15px;
 }
 
 .note {
-  margin: 4px 0 0;
+  margin: 5px 0 0 15px;
 }
 
 .folder {
   display: flex;
   align-items: flex-end;
   gap: 6px;
-  margin-top: 8px;
+  margin: 9px 0 0 15px;
 }
 
 .folder label {
@@ -190,31 +182,35 @@ button {
   flex: 1;
   flex-direction: column;
   gap: 4px;
+  color: var(--fg-2);
+  font-size: 11.5px;
 }
 
-.folder input {
-  font: inherit;
-  padding: 3px 6px;
+.card-banner {
+  margin: 8px 0 0;
 }
 
 .summary {
-  margin: 8px 0 0;
-  padding: 8px;
+  margin: 9px 0 0;
+  padding: 8px 9px;
   border-radius: 6px;
-  background: var(--hover);
-  font: inherit;
+  background: var(--fill);
+  font: 12px/1.45 -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
   white-space: pre-wrap;
-  user-select: text;
 }
 
 .empty {
-  padding: 24px 12px;
-  color: var(--muted);
-  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 48px 12px;
+  color: var(--fg-3);
+  font-size: 12px;
 }
 
 .footer {
   padding: 6px 12px;
-  border-top: 1px solid var(--line);
+  border-top: 0.5px solid var(--separator);
 }
 </style>
