@@ -48,7 +48,7 @@ const parseLinks = (value: string) =>
     </Group>
 
     <Group label="Deploys and errors">
-      <SettingRow label="Forge site → Sentry project" hint="One per line, e.g. ustad.app = ustad-api; links new errors to the deploy before them" stacked>
+      <SettingRow label="Forge site → Sentry project" hint="One per line, e.g. acme.app = acme-api; links new errors to the deploy before them" stacked>
         <textarea class="text-input" rows="3" :value="siteLinks()" @change="save({ sentryProjectForSite: parseLinks(text($event)) })" />
       </SettingRow>
     </Group>

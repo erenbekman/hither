@@ -21,7 +21,7 @@ const input = (signals: Signal[], extra: Partial<RuleInput> = {}): RuleInput => 
   signals,
   now,
   sentryOrg: 'acme',
-  sentryProjectForSite: { 'ustad.app': 'ustad-api' },
+  sentryProjectForSite: { 'acme.app': 'acme-api' },
   ...extra,
 })
 
@@ -30,23 +30,23 @@ const deploy = base({
   source: 'forge',
   lane: 'outgoing',
   kind: 'deploy-ok',
-  project: 'ustad.app',
-  url: 'https://ustad.app',
+  project: 'acme.app',
+  url: 'https://acme.app',
   at: minutesAgo(25),
-  meta: { hash: 'abc1234', sha: 'abc1234def', repo: 'eren/ustad', serverId: '1', siteId: '2', deploymentId: '9' },
+  meta: { hash: 'abc1234', sha: 'abc1234def', repo: 'eren/acme', serverId: '1', siteId: '2', deploymentId: '9' },
 })
-const error = (id: string, minutes: number, project = 'ustad-api') =>
+const error = (id: string, minutes: number, project = 'acme-api') =>
   base({ id: `sentry:${id}`, source: 'sentry', lane: 'outgoing', kind: 'error-new', project, at: minutesAgo(minutes), url: `https://acme.sentry.io/issues/${id}/`, meta: { shortId: `API-${id}` } })
 
 describe('suggest', () => {
   it('links new errors to the deploy that came right before them', () => {
     const [card] = suggest(input([deploy, error('1', 20), error('2', 10), error('3', 30), error('4', 10, 'other')]))
-    expect(card).toMatchObject({ id: 'deploy-errors:forge:deploy:9', severity: 'critical', title: 'Errors started after the ustad.app deploy' })
+    expect(card).toMatchObject({ id: 'deploy-errors:forge:deploy:9', severity: 'critical', title: 'Errors started after the acme.app deploy' })
     expect(card.actions[0]).toEqual({
       kind: 'claude',
       template: 'deploy-errors',
-      repo: 'eren/ustad',
-      vars: { site: 'ustad.app', sha: 'abc1234def', issues: 'API-1,API-2', org: 'acme' },
+      repo: 'eren/acme',
+      vars: { site: 'acme.app', sha: 'abc1234def', issues: 'API-1,API-2', org: 'acme' },
     })
   })
 
@@ -60,8 +60,8 @@ describe('suggest', () => {
     expect(card.actions[0]).toEqual({
       kind: 'claude',
       template: 'deploy-failed',
-      repo: 'eren/ustad',
-      vars: { site: 'ustad.app', sha: 'abc1234def' },
+      repo: 'eren/acme',
+      vars: { site: 'acme.app', sha: 'abc1234def' },
       log: { serverId: '1', siteId: '2', deploymentId: '9' },
     })
   })

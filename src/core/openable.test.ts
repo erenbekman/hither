@@ -9,8 +9,8 @@ describe('isOpenable', () => {
   })
 
   it('opens a site only when it is one of the watched Forge sites', () => {
-    expect(isOpenable('https://ustad.app/', ['ustad.app'])).toBe(true)
-    expect(isOpenable('https://evil.example/', ['ustad.app'])).toBe(false)
+    expect(isOpenable('https://acme.app/', ['acme.app'])).toBe(true)
+    expect(isOpenable('https://evil.example/', ['acme.app'])).toBe(false)
     expect(isOpenable('http://dev.test/', ['dev.test'])).toBe(true)
   })
 

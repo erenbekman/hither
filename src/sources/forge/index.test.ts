@@ -26,7 +26,7 @@ const site = (id: string, name: string, url = `https://${name}`) => ({
 
 const body = {
   data: [deployment(3, '1', 'failed', 5), deployment(2, '1', 'finished', 60), deployment(9, '2', 'finished', 10), deployment(7, '3', 'finished', 90)],
-  included: [site('1', 'ustad.app'), site('2', 'medvise.app'), site('3', 'old.app')],
+  included: [site('1', 'acme.app'), site('2', 'shop.app'), site('3', 'old.app')],
 }
 
 describe('parseDeployments', () => {
@@ -34,7 +34,7 @@ describe('parseDeployments', () => {
     const { deployments, sites } = parseDeployments(body)
     expect(deployments).toHaveLength(4)
     expect(deployments[0]).toMatchObject({ id: '3', status: 'failed', siteId: '1', message: 'Release 3', author: 'Eren' })
-    expect(sites.get('2')).toEqual({ name: 'medvise.app', url: 'https://medvise.app', repo: 'eren/medvise.app' })
+    expect(sites.get('2')).toEqual({ name: 'shop.app', url: 'https://shop.app', repo: 'eren/shop.app' })
   })
 
   it('survives a body without data', () => {
@@ -44,7 +44,7 @@ describe('parseDeployments', () => {
 
 describe('siteUrl', () => {
   it('adds a scheme when Forge gives a bare domain', () => {
-    expect(siteUrl({ name: 'ustad.app', url: 'ustad.app', https: true })).toBe('https://ustad.app')
+    expect(siteUrl({ name: 'acme.app', url: 'acme.app', https: true })).toBe('https://acme.app')
     expect(siteUrl({ name: 'dev.test', https: false })).toBe('http://dev.test')
     expect(siteUrl({ url: 'https://x.dev' })).toBe('https://x.dev')
   })
@@ -55,26 +55,26 @@ describe('deploymentSignals', () => {
     const { deployments, sites } = parseDeployments(body)
     const signals = deploymentSignals(deployments, sites, now)
     expect(signals.map((s) => [s.project, s.kind, s.severity])).toEqual([
-      ['ustad.app', 'deploy-failed', 'critical'],
-      ['medvise.app', 'deploy-ok', 'info'],
+      ['acme.app', 'deploy-failed', 'critical'],
+      ['shop.app', 'deploy-ok', 'info'],
     ])
     expect(signals[0]).toMatchObject({
       id: 'forge:deploy:3',
-      url: 'https://ustad.app',
+      url: 'https://acme.app',
       title: 'Release 3',
-      meta: { hash: 'abcdef3', sha: 'abcdef3123', repo: 'eren/ustad.app', siteId: '1', deploymentId: '3' },
+      meta: { hash: 'abcdef3', sha: 'abcdef3123', repo: 'eren/acme.app', siteId: '1', deploymentId: '3' },
     })
   })
 
   it('drops a successful deployment after thirty minutes', () => {
-    const { deployments, sites } = parseDeployments({ data: [deployment(1, '1', 'finished', 31)], included: [site('1', 'ustad.app')] })
+    const { deployments, sites } = parseDeployments({ data: [deployment(1, '1', 'finished', 31)], included: [site('1', 'acme.app')] })
     expect(deploymentSignals(deployments, sites, now)).toEqual([])
   })
 
   it('shows a running deployment and ignores a cancelled one', () => {
     const { deployments, sites } = parseDeployments({
       data: [deployment(1, '1', 'deploying', 0), deployment(2, '2', 'cancelled', 1)],
-      included: [site('1', 'ustad.app'), site('2', 'medvise.app')],
+      included: [site('1', 'acme.app'), site('2', 'shop.app')],
     })
     expect(deploymentSignals(deployments, sites, now).map((s) => s.kind)).toEqual(['deploy-running'])
   })
