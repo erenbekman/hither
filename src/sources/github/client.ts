@@ -8,8 +8,9 @@ export const TIMEOUT_MS = 15_000
 
 const itemFields = 'number title url createdAt author { login __typename } repository { nameWithOwner }'
 const rollup = 'statusCheckRollup { state }'
-const prSearch = (alias: string, extra = '') =>
-  `${alias}: search(query: $${alias}, type: ISSUE, first: $first) { issueCount nodes { ... on PullRequest { ${itemFields} isDraft ${extra} } } }`
+const lastCommit = `commits(last: 1) { nodes { commit { ${rollup} } } }`
+const prSearch = (alias: string, withChecks: boolean) =>
+  `${alias}: search(query: $${alias}, type: ISSUE, first: $first) { issueCount nodes { ... on PullRequest { ${itemFields} isDraft headRefName ${withChecks ? lastCommit : ''} } } }`
 
 export function document(watched: number): string {
   const repoVars = Array.from({ length: watched }, (_, i) => `, $w${i}o: String!, $w${i}n: String!`).join('')
@@ -20,11 +21,11 @@ export function document(watched: number): string {
   ).join('\n  ')
   return `query($prs: String!, $issues: String!, $review: String!, $changesRequested: String!, $myPullRequests: String!, $first: Int!${repoVars}) {
   viewer { login organizations(first: 50) { nodes { login } } }
-  ${prSearch('prs')}
+  ${prSearch('prs', true)}
   issues: search(query: $issues, type: ISSUE, first: $first) { issueCount nodes { ... on Issue { ${itemFields} } } }
-  ${prSearch('review')}
-  ${prSearch('changesRequested')}
-  ${prSearch('myPullRequests', `commits(last: 1) { nodes { commit { ${rollup} } } }`)}
+  ${prSearch('review', false)}
+  ${prSearch('changesRequested', false)}
+  ${prSearch('myPullRequests', true)}
   ${repos}
   rateLimit { limit remaining resetAt cost }
 }`

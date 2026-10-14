@@ -95,8 +95,33 @@ export function branchCi(branch: Branch): Signal | undefined {
   }
 }
 
+export function isAgentPullRequest(item: Item, settings: Pick<Settings, 'agentLogins' | 'agentBranchPrefixes'>): boolean {
+  const login = item.authorLogin.toLowerCase().replace(/\[bot\]$/, '')
+  if (settings.agentLogins.some((agent) => agent.toLowerCase().replace(/\[bot\]$/, '') === login)) return true
+  return item.headRef !== undefined && settings.agentBranchPrefixes.some((prefix) => item.headRef!.startsWith(prefix))
+}
+
+export function agentPullRequest(item: Item): Signal {
+  const ready = item.ci === 'SUCCESS' && !item.isDraft
+  return {
+    id: `agent-pr:${item.url}`,
+    source: 'github',
+    lane: 'agents',
+    kind: ready ? 'agent-pr-ready' : 'agent-pr',
+    severity: ready ? 'attention' : 'info',
+    project: item.repository,
+    title: item.title,
+    url: item.url,
+    actor: item.authorLogin,
+    at: item.createdAt,
+    meta: { number: item.number, isDraft: item.isDraft, ci: item.ci, branch: item.headRef },
+  }
+}
+
 export function describeSignal(signal: Signal): string {
   switch (signal.kind) {
+    case 'agent-pr-ready':
+      return `Agent PR ready #${signal.meta?.number}`
     case 'ci-main-failed':
       return `${signal.meta?.branch ?? 'main'} is red`
     case 'ci-failed':
@@ -123,12 +148,22 @@ export function githubSource(deps: {
       if (queries.allowListEmpty) return { signals: [], notices: [...notices, 'No repositories selected'] }
 
       const token = await deps.token()
-      const watched = deps.settings().watchedRepos
+      const settings = deps.settings()
+      const watched = settings.watchedRepos
       const snapshot = await fetchSnapshot(token, queries, { fetchFn: deps.fetchFn, signal: ctx.signal, watched })
 
+      const agentPrs = new Map<string, Signal>()
       const signals = (Object.keys(SEARCH_KIND) as SearchKey[]).flatMap((key) =>
-        snapshot.searches[key].map((item) => toSignal(item, SEARCH_KIND[key])),
+        snapshot.searches[key].flatMap((item) => {
+          if (item.type === 'pr' && isAgentPullRequest(item, settings)) {
+            const known = agentPrs.get(item.url)
+            if (!known || (known.meta?.ci === undefined && item.ci !== undefined)) agentPrs.set(item.url, agentPullRequest(item))
+            return []
+          }
+          return [toSignal(item, SEARCH_KIND[key])]
+        }),
       )
+      signals.push(...agentPrs.values())
       for (const item of snapshot.searches.myPullRequests) {
         const ci = pullRequestCi(item)
         if (ci) signals.push(ci)

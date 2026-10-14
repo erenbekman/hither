@@ -53,4 +53,31 @@ describe('githubSource', () => {
     ])
     expect(result.notices).toContain('Watched repository bob/gone was not found')
   })
+
+  it('moves agent pull requests to the Agents lane, once each, and marks green ones ready', async () => {
+    const agentPr = (number: number, login: string, typename: string, headRefName: string, state: string, isDraft = false) => ({
+      number,
+      title: `Agent ${number}`,
+      url: `https://github.com/bob/tools/pull/${number}`,
+      createdAt: '2026-10-14T09:00:00Z',
+      isDraft,
+      headRefName,
+      author: { login, __typename: typename },
+      repository: { nameWithOwner: 'bob/tools' },
+      commits: { nodes: [{ commit: { statusCheckRollup: { state } } }] },
+    })
+    const body = withData({
+      prs: { issueCount: 2, nodes: [agentPr(70, 'claude', 'Bot', 'fix/x', 'SUCCESS'), agentPr(71, 'copilot-swe-agent', 'Bot', 'copilot/y', 'PENDING')] },
+      review: { issueCount: 1, nodes: [{ ...agentPr(70, 'claude', 'Bot', 'fix/x', 'SUCCESS'), commits: undefined }] },
+      myPullRequests: { issueCount: 1, nodes: [agentPr(72, 'bob', 'User', 'claude/tray-fix', 'SUCCESS', true)] },
+    })
+    const result = await githubSource({ token: async () => 't', settings: () => DEFAULT_SETTINGS, fetchFn: answer(body) }).poll(ctx)
+    const agents = result.signals.filter((s) => s.lane === 'agents')
+    expect(agents.map((s) => [s.meta?.number, s.kind, s.severity])).toEqual([
+      [70, 'agent-pr-ready', 'attention'],
+      [71, 'agent-pr', 'info'],
+      [72, 'agent-pr', 'info'],
+    ])
+    expect(result.signals.filter((s) => s.lane === 'incoming')).toEqual([])
+  })
 })
