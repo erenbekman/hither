@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Hither</title>
+    <meta name="description" content="What's coming hither, what's gone thither — PRs, deploys and agents in your menu bar." />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main>
+      <header class="hero">
+        <h1>Hither</h1>
+        <p class="tagline">What's coming hither, what's gone thither — PRs, deploys and agents in your menu bar.</p>
+        <pre class="install"><code>brew install --cask erenbekman/tap/hither</code></pre>
+        <p class="meta">macOS 13+ · Apple silicon · free and open source (MIT) · <a href="https://github.com/erenbekman/hither">GitHub</a></p>
+      </header>
+
+      <section class="panel" aria-label="Hither panel preview">
+        <div class="tabs">
+          <span class="active">Incoming <b>2</b></span><span>Outgoing <b>1</b></span><span>Agents <b>1</b></span><span>Suggestions</span>
+        </div>
+        <div class="bar"><span class="dot"></span>you<span class="muted right">Updated now ↻</span></div>
+        <h2>Review Requested</h2>
+        <div class="row unseen"><span class="mark"></span><span><strong>Add rate limit to webhooks</strong><small>acme/api #418 · @carol</small></span><em>2h</em></div>
+        <h2>Pull Requests</h2>
+        <div class="row unseen"><span class="mark"></span><span><strong>Fix timezone in invoice export</strong><small>acme/billing #77 · @dave</small></span><em>1d</em></div>
+        <div class="row"><span class="mark"></span><span><strong>Bump vite to 8.3</strong><small>acme/web #212 · @erin</small></span><em>3d</em></div>
+      </section>
+
+      <section class="lanes">
+        <article>
+          <h3>Incoming</h3>
+          <p>Pull requests and issues others opened in your repositories, reviews waiting on you, changes requested on yours. One GraphQL request per refresh.</p>
+        </article>
+        <article>
+          <h3>Outgoing</h3>
+          <p>Checks on your pull requests and your main branches, Laravel Forge deployments, new and spiking Sentry errors.</p>
+        </article>
+        <article>
+          <h3>Agents</h3>
+          <p>Claude Code sessions that are working, finished or waiting for you, and pull requests opened by coding agents.</p>
+        </article>
+        <article>
+          <h3>Suggestions</h3>
+          <p>Deterministic rules turn those signals into one-click actions, such as opening Claude Code in the right folder when a check fails after a deploy.</p>
+        </article>
+      </section>
+
+      <section class="privacy">
+        <h3>Your data stays on your Mac</h3>
+        <ul>
+          <li>Hither talks only to GitHub, Forge and Sentry, using your own tokens. Tokens live in the macOS Keychain.</li>
+          <li>Nothing is sent to Claude unless you press a button that says so. Prompts carry only ids such as a repository and a pull request number, never titles, logs or error text.</li>
+          <li>The Claude Code hook listener accepts connections from 127.0.0.1 only and checks a random token.</li>
+          <li>Errors are shown as errors. An empty list always means there is nothing to show.</li>
+        </ul>
+      </section>
+
+      <footer>
+        Inspired by <a href="https://github.com/cobanov/ghbar">GHBar</a> by Mert Çobanov. © 2026 Eren Bekman · MIT
+      </footer>
+    </main>
+  </body>
+</html>
