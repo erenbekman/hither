@@ -21,6 +21,12 @@ step "Checking prerequisites for v$version"
 [ -n "$pubkey" ] || fail "plugins.updater.pubkey is empty in src-tauri/tauri.conf.json"
 [ -f "$KEY" ] || fail "updater private key not found at $KEY"
 [ -n "${TAURI_SIGNING_PRIVATE_KEY_PASSWORD+set}" ] || fail "export TAURI_SIGNING_PRIVATE_KEY_PASSWORD (empty if the key has none)"
+probe=$(mktemp)
+env -u TAURI_SIGNING_PRIVATE_KEY npm run --silent tauri signer sign -- -f "$KEY" "$probe" >/dev/null 2>&1 || {
+  rm -f "$probe" "$probe.sig"
+  fail "TAURI_SIGNING_PRIVATE_KEY_PASSWORD does not unlock $KEY"
+}
+rm -f "$probe" "$probe.sig"
 security find-identity -v -p codesigning | grep -qF "\"$IDENTITY\"" || fail "signing identity not found: $IDENTITY"
 xcrun notarytool history --keychain-profile "$PROFILE" >/dev/null 2>&1 || fail "notary profile '$PROFILE' not found; run: xcrun notarytool store-credentials $PROFILE"
 [ -z "$(git status --porcelain)" ] || fail "commit or stash your changes first"
@@ -57,37 +63,4 @@ spctl --assess --type execute --verbose=2 "$app"
 xcrun stapler validate "$app"
 xcrun stapler validate "$out/$dmg_name"
 
-step "Packing and signing the update"
-tar -czf "$out/Hither.app.tar.gz" -C "$bundle/macos" Hither.app
-env -u TAURI_SIGNING_PRIVATE_KEY npm run tauri signer sign -- -f "$KEY" "$out/Hither.app.tar.gz"
-
-node - "$version" "$out" "$REPO" "$notes" <<'JS'
-const fs = require('fs')
-const [version, out, repo, notes] = process.argv.slice(2)
-const latest = {
-  version,
-  notes,
-  pub_date: new Date().toISOString(),
-  platforms: {
-    'darwin-aarch64': {
-      signature: fs.readFileSync(`${out}/Hither.app.tar.gz.sig`, 'utf8').trim(),
-      url: `https://github.com/${repo}/releases/download/v${version}/Hither.app.tar.gz`,
-    },
-  },
-}
-fs.writeFileSync(`${out}/latest.json`, JSON.stringify(latest, null, 2) + '\n')
-JS
-
-sha=$(shasum -a 256 "$out/$dmg_name" | cut -d' ' -f1)
-sed -e "s/{{version}}/$version/" -e "s/{{sha256}}/$sha/" packaging/hither.rb.template > "$out/hither.rb"
-
-step "Done: $out"
-ls -lh "$out"
-cat <<NEXT
-
-Publish (run these yourself):
-  git tag v$version && git push origin v$version
-  gh release create v$version --repo $REPO --title "Hither $version" --notes "$notes" \\
-    "$out/$dmg_name" "$out/Hither.app.tar.gz" "$out/latest.json"
-  cp "$out/hither.rb" <path-to>/homebrew-tap/Casks/hither.rb   # then commit and push the tap
-NEXT
+scripts/sign-update.sh "$notes"
