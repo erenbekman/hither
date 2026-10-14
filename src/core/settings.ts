@@ -9,6 +9,13 @@ export interface Settings {
   showDrafts: boolean
   hiddenKinds: string[]
   repoGroupThreshold: number
+  watchedRepos: string[]
+  forgeEnabled: boolean
+  forgeOrg: string
+  forgeServers: string[]
+  sentryEnabled: boolean
+  sentryOrg: string
+  sentryProjects: string[]
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -22,6 +29,13 @@ export const DEFAULT_SETTINGS: Settings = {
   showDrafts: true,
   hiddenKinds: [],
   repoGroupThreshold: 3,
+  watchedRepos: [],
+  forgeEnabled: false,
+  forgeOrg: '',
+  forgeServers: [],
+  sentryEnabled: false,
+  sentryOrg: '',
+  sentryProjects: [],
 }
 
 const isStringList = (value: unknown): value is string[] =>
@@ -32,6 +46,7 @@ export function normalizeSettings(raw: Record<string, unknown>): Settings {
     (valid(raw[key]) ? raw[key] : DEFAULT_SETTINGS[key]) as Settings[K]
   const isBool = (value: unknown) => typeof value === 'boolean'
   const isCount = (value: unknown) => Number.isInteger(value) && (value as number) >= 0
+  const isText = (value: unknown) => typeof value === 'string'
 
   const accounts = pick('accounts', isStringList)
   return {
@@ -45,5 +60,12 @@ export function normalizeSettings(raw: Record<string, unknown>): Settings {
     showDrafts: pick('showDrafts', isBool),
     hiddenKinds: pick('hiddenKinds', isStringList),
     repoGroupThreshold: pick('repoGroupThreshold', isCount),
+    watchedRepos: pick('watchedRepos', isStringList).filter((repo) => /^[\w.-]+\/[\w.-]+$/.test(repo)),
+    forgeEnabled: pick('forgeEnabled', isBool),
+    forgeOrg: pick('forgeOrg', isText).trim(),
+    forgeServers: pick('forgeServers', isStringList),
+    sentryEnabled: pick('sentryEnabled', isBool),
+    sentryOrg: pick('sentryOrg', isText).trim(),
+    sentryProjects: pick('sentryProjects', isStringList),
   }
 }

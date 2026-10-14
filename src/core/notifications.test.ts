@@ -23,13 +23,14 @@ describe('notificationsFor', () => {
     expect(specs[0]).toEqual({
       title: 'New pull request #1 · api',
       body: 'Fix 1\n@carol',
+      id: 'https://github.com/acme/api/pull/1',
       url: 'https://github.com/acme/api/pull/1',
     })
   })
 
   it('collapses more than five items into one summary', () => {
     const specs = notificationsFor([1, 2, 3, 4, 5, 6].map(signal), describeSignal)
-    expect(specs).toEqual([{ title: '6 new items', body: '6 new pull requests and issues are waiting.' }])
+    expect(specs).toEqual([{ title: '6 new items', body: '6 new items need your attention.' }])
   })
 
   it('sends nothing when nothing is new', () => {

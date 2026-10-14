@@ -20,4 +20,11 @@ describe('normalizeSettings', () => {
   it('falls back to @me when the account list is empty', () => {
     expect(normalizeSettings({ accounts: [] }).accounts).toEqual(['@me'])
   })
+
+  it('keeps only owner/name entries in the watched repositories', () => {
+    expect(normalizeSettings({ watchedRepos: ['acme/api', 'nope', 'a/b/c', 'me/site.app'] }).watchedRepos).toEqual([
+      'acme/api',
+      'me/site.app',
+    ])
+  })
 })

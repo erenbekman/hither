@@ -22,17 +22,35 @@ describe('SeenStore', () => {
     expect(reload(store).isSeen(item(1).id)).toBe(true)
   })
 
-  it('reports the first run once', () => {
+  it('reports the first run once per source', () => {
     const store = new SeenStore()
-    expect(store.isFirstRun).toBe(true)
-    expect(store.markFirstRunDone()).toBe(true)
-    expect(store.isFirstRun).toBe(false)
-    expect(store.markFirstRunDone()).toBe(false)
+    expect(store.isFirstRun('github')).toBe(true)
+    expect(store.markFirstRunDone('github')).toBe(true)
+    expect(store.isFirstRun('github')).toBe(false)
+    expect(store.markFirstRunDone('github')).toBe(false)
+    expect(store.isFirstRun('forge')).toBe(true)
+  })
+
+  it('reads a file written before sources were tracked separately', () => {
+    const old = { version: 1, bootstrapped: true, seen: { a: '2026-10-14T00:00:00.000Z' }, notified: ['a'], returned: {}, kinds: {} }
+    const store = new SeenStore(old)
+    expect(store.isFirstRun('github')).toBe(false)
+    expect(store.isFirstRun('forge')).toBe(true)
+    expect(store.isSeen('a')).toBe(true)
+  })
+
+  it('remembers when a check was fixed until the item is pruned', () => {
+    const store = new SeenStore()
+    store.markFixed('ci', start)
+    store.recordReturned(['ci'], start)
+    expect(reload(store).fixedAt('ci')).toBe(start.toISOString())
+    store.prune(after(15))
+    expect(store.fixedAt('ci')).toBeUndefined()
   })
 
   it('does not count items as seen on the first run', () => {
     const store = new SeenStore()
-    store.markFirstRunDone()
+    store.markFirstRunDone('github')
     expect(store.unseen([item(1), item(2)])).toHaveLength(2)
   })
 
@@ -77,7 +95,7 @@ describe('SeenStore', () => {
   it('starts over from a corrupt file instead of crashing', () => {
     for (const raw of ['this is not json', { version: 1, seen: 3 }, null]) {
       const store = new SeenStore(raw)
-      expect(store.isFirstRun).toBe(true)
+      expect(store.isFirstRun('github')).toBe(true)
       expect(store.isSeen('anything')).toBe(false)
     }
   })
@@ -85,14 +103,14 @@ describe('SeenStore', () => {
   it('resets everything when the account changes', () => {
     const store = new SeenStore()
     expect(store.switchAccount('alice')).toBe(false)
-    store.markFirstRunDone()
+    store.markFirstRunDone('github')
     store.markSeen(['a'], start)
     store.markNotified(['a'])
     expect(store.switchAccount('alice')).toBe(false)
     expect(store.isSeen('a')).toBe(true)
     expect(store.switchAccount('bob')).toBe(true)
     expect(store.isSeen('a')).toBe(false)
-    expect(store.isFirstRun).toBe(true)
+    expect(store.isFirstRun('github')).toBe(true)
     expect(store.account).toBe('bob')
   })
 })
@@ -115,11 +133,11 @@ describe('SeenStore notifications', () => {
 
   it('survives a save and reload', () => {
     const store = new SeenStore()
-    store.markFirstRunDone()
+    store.markFirstRunDone('github')
     store.markNotified([item(1).id])
     const reloaded = reload(store)
     expect(reloaded.unnotified([item(1)])).toEqual([])
-    expect(reloaded.isFirstRun).toBe(false)
+    expect(reloaded.isFirstRun('github')).toBe(false)
   })
 
   it('lets prune clear the notified set too', () => {

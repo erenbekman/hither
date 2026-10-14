@@ -20,6 +20,6 @@ describe('errorText', () => {
   it('suggests gh auth login when not signed in', () => {
     const error = toAppError({ kind: 'gh-not-authenticated' })
     expect(errorText(error)).toBe('Not signed in to GitHub CLI')
-    expect(errorHint(error)).toBe('gh auth login')
+    expect(errorHint(error)).toEqual({ command: 'gh auth login' })
   })
 })

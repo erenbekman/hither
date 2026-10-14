@@ -1,3 +1,5 @@
+export type Service = 'GitHub' | 'Forge' | 'Sentry'
+
 export type AppError =
   | { kind: 'gh-not-found' }
   | { kind: 'gh-not-authenticated' }
@@ -8,7 +10,11 @@ export type AppError =
   | { kind: 'github-graphql'; message: string }
   | { kind: 'github-parse'; message: string }
   | { kind: 'github-status'; status: number }
-  | { kind: 'network'; message: string }
+  | { kind: 'service-unauthorized'; service: Service }
+  | { kind: 'service-rate-limited'; service: Service; resetAt: string }
+  | { kind: 'service-status'; service: Service; status: number }
+  | { kind: 'service-not-configured'; service: Service; missing: string }
+  | { kind: 'network'; message: string; service?: Service }
   | { kind: 'unknown'; message: string }
 
 const KNOWN_KINDS = new Set<string>([
@@ -21,6 +27,10 @@ const KNOWN_KINDS = new Set<string>([
   'github-graphql',
   'github-parse',
   'github-status',
+  'service-unauthorized',
+  'service-rate-limited',
+  'service-status',
+  'service-not-configured',
   'network',
 ])
 
@@ -55,21 +65,34 @@ export function errorText(error: AppError): string {
       return 'Unexpected response from GitHub'
     case 'github-status':
       return `GitHub answered with HTTP ${error.status}`
+    case 'service-unauthorized':
+      return `${error.service} rejected the token`
+    case 'service-rate-limited':
+      return `${error.service} rate limit reached · resets ${clock(error.resetAt)}`
+    case 'service-status':
+      return `${error.service} answered with HTTP ${error.status}`
+    case 'service-not-configured':
+      return `${error.service}: ${error.missing}`
     case 'network':
-      return 'No connection to GitHub'
+      return `No connection to ${error.service ?? 'GitHub'}`
     case 'unknown':
       return `Unexpected error: ${error.message}`
   }
 }
 
-export function errorHint(error: AppError): string | undefined {
+export type ErrorHint = { command: string } | { text: string }
+
+export function errorHint(error: AppError): ErrorHint | undefined {
   switch (error.kind) {
     case 'gh-not-found':
-      return 'brew install gh && gh auth login'
+      return { command: 'brew install gh && gh auth login' }
     case 'gh-not-authenticated':
     case 'gh-timeout':
     case 'github-unauthorized':
-      return 'gh auth login'
+      return { command: 'gh auth login' }
+    case 'service-unauthorized':
+    case 'service-not-configured':
+      return { text: 'Check it in Settings' }
     default:
       return undefined
   }

@@ -1,42 +1,60 @@
 export interface SeenState {
   version: 1
   account?: string
-  bootstrapped: boolean
+  bootstrappedSources: string[]
   seen: Record<string, string>
   notified: string[]
   returned: Record<string, string>
   kinds: Record<string, string>
+  fixedAt: Record<string, string>
 }
 
 const TWO_WEEKS_MS = 14 * 86_400_000
 
-const emptyState = (): SeenState => ({ version: 1, bootstrapped: false, seen: {}, notified: [], returned: {}, kinds: {} })
+const emptyState = (): SeenState => ({
+  version: 1,
+  bootstrappedSources: [],
+  seen: {},
+  notified: [],
+  returned: {},
+  kinds: {},
+  fixedAt: {},
+})
 
 const isRecordOfStrings = (value: unknown): value is Record<string, string> =>
   typeof value === 'object' && value !== null && !Array.isArray(value) && Object.values(value).every((v) => typeof v === 'string')
+const isStringList = (value: unknown): value is string[] => Array.isArray(value) && value.every((v) => typeof v === 'string')
 
 function restore(raw: unknown): SeenState {
   if (typeof raw !== 'object' || raw === null) return emptyState()
-  const state = raw as Partial<SeenState>
+  const state = raw as Record<string, unknown>
+  const sources = isStringList(state.bootstrappedSources)
+    ? state.bootstrappedSources
+    : state.bootstrapped === true
+      ? ['github']
+      : state.bootstrapped === false
+        ? []
+        : undefined
   if (
     state.version !== 1 ||
-    typeof state.bootstrapped !== 'boolean' ||
+    sources === undefined ||
     !isRecordOfStrings(state.seen) ||
-    !Array.isArray(state.notified) ||
-    !state.notified.every((id) => typeof id === 'string') ||
+    !isStringList(state.notified) ||
     !isRecordOfStrings(state.returned) ||
-    !isRecordOfStrings(state.kinds)
+    !isRecordOfStrings(state.kinds) ||
+    (state.fixedAt !== undefined && !isRecordOfStrings(state.fixedAt))
   ) {
     return emptyState()
   }
   return {
     version: 1,
     account: typeof state.account === 'string' ? state.account : undefined,
-    bootstrapped: state.bootstrapped,
+    bootstrappedSources: [...sources],
     seen: { ...state.seen },
     notified: [...state.notified],
     returned: { ...state.returned },
     kinds: { ...state.kinds },
+    fixedAt: { ...((state.fixedAt as Record<string, string> | undefined) ?? {}) },
   }
 }
 
@@ -53,8 +71,14 @@ export class SeenStore {
     return this.state.account
   }
 
-  get isFirstRun(): boolean {
-    return !this.state.bootstrapped
+  isFirstRun(source: string): boolean {
+    return !this.state.bootstrappedSources.includes(source)
+  }
+
+  markFirstRunDone(source: string): boolean {
+    if (!this.isFirstRun(source)) return false
+    this.state.bootstrappedSources.push(source)
+    return true
   }
 
   isSeen(id: string): boolean {
@@ -69,18 +93,24 @@ export class SeenStore {
     return items.filter((item) => !this.isSeen(item.id))
   }
 
-  markFirstRunDone(): boolean {
-    if (this.state.bootstrapped) return false
-    this.state.bootstrapped = true
-    return true
-  }
-
   unnotified<T extends { id: string }>(items: T[]): T[] {
     return items.filter((item) => !this.notified.has(item.id))
   }
 
   markNotified(ids: string[]): void {
     for (const id of ids) this.notified.add(id)
+  }
+
+  kindOf(id: string): string | undefined {
+    return this.state.kinds[id]
+  }
+
+  fixedAt(id: string): string | undefined {
+    return this.state.fixedAt[id]
+  }
+
+  markFixed(id: string, now: Date): void {
+    this.state.fixedAt[id] = now.toISOString()
   }
 
   recordReturned(ids: Iterable<string>, now: Date): void {
@@ -94,6 +124,7 @@ export class SeenStore {
       delete this.state.returned[id]
       delete this.state.seen[id]
       delete this.state.kinds[id]
+      delete this.state.fixedAt[id]
       this.notified.delete(id)
     }
   }
