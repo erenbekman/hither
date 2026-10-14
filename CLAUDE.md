@@ -14,7 +14,7 @@ macOS menü çubuğu uygulaması. Tauri v2 + Vue 3 + TypeScript + Vite. Ürün v
    - Rust'ta izinli: `tauri-plugin-positioner`, `tauri-plugin-notification`, `tauri-plugin-store`, `tauri-plugin-http`, `tauri-plugin-updater`, `keyring`, `tiny_http` (`serde_json` zaten Tauri'nin bağımlılığı).
    - Bunların dışında bir paket (JS ya da Rust) eklemeden önce sor.
 4. **Panel penceresi kapatılmaz, yalnızca gizlenir.** Webview'daki zamanlayıcı arka planda çalışmaya devam eder.
-5. **Hiçbir hata boş liste olarak gösterilmez.** Her hata panelde görünür bir satırdır (`src/core/errors.ts` → `ErrorRow`). "Bakamadım" ≠ "bekleyen yok".
+5. **Hiçbir hata boş liste olarak gösterilmez.** Her hata panelde görünür bir satırdır (`src/core/errors.ts` → `Banner`). "Bakamadım" ≠ "bekleyen yok".
 
 ## Şeritler
 
@@ -29,14 +29,14 @@ Her kaynak `src/sources/<kaynak>/` altında, verisini tek tipe (`Signal`, `src/c
 
 ## Yapı
 
-- `src-tauri/src/lib.rs` — tray, popover, ayarlar penceresi, `set_badge`, `open_url`, `copy_text`, `reveal_panel`
+- `src-tauri/src/lib.rs` — tray (Mark All as Seen, Settings, Quit), popover, ayarlar penceresi, `set_tray` (sayı + normal/alert/error ikon), `open_url`, `copy_text`, `reveal_panel`
 - `src-tauri/src/gh.rs` — `gh_token` (tam yollar → PATH, 5 sn watchdog)
 - `src-tauri/src/secret.rs` — `secret_get/set/delete` (Keychain)
 - `src-tauri/src/hooks.rs` — Claude Code hook dinleyicisi (`127.0.0.1:47811`), `claude_settings_read/write` (yedekli, atomik, izinleri genişletmez)
 - `src-tauri/src/launch.rs` — seçili terminalde (iTerm, Terminal, Ghostty, Warp) `claude` başlatma, yalnız okuma araçlı `claude -p`, `git_repo`, şablon dosyaları
 - `src-tauri/src/process.rs` — zaman aşımlı süreç çalıştırıcı ve ikili bulucu (gh, claude)
 - `src/core` — tipler, hatalar, ayarlar, `RefreshGate`, filtreleme, `SeenStore`, bildirim planı, `board` (çok kaynaklı yenileme döngüsü), `recovery` (CI düzeldi), `http`, `openable`
-- `src/sources/github` — sorgu kurucu, GraphQL istemcisi (CI + izlenen branch'ler, profil ve kota dahil), cevap ayrıştırıcı, `githubSource`; `account.ts` kota görünürlüğü ve repo sayaçları (`repos.json`)
+- `src/sources/github` — sorgu kurucu, GraphQL istemcisi (CI + izlenen branch'ler, profil ve kota dahil), cevap ayrıştırıcı, `githubSource`; `account.ts` kota görünürlüğü ve repo sayaçları (`repos.json`); `activity.ts` GitHub Notifications'tan "New Activity" (yalnız okuma, `If-Modified-Since`)
 - `src/sources/forge`, `src/sources/sentry` — Outgoing adapter'ları; token'lar Keychain'de (`forge-token`, `sentry-token`)
 - `src/sources/claude-code` — oturumlardan Agents sinyalleri; durum makinesi `core/sessions.ts`, settings.json birleştirme `core/claude-settings.ts`
 - `src/lanes.ts` — şerit başına bölüm sırası, başlıklar, "loud" kuralı (bildirim + rozet)

@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { computed, reactive } from 'vue'
 import type { BoardState } from '../core/board'
-import type { Section } from '../core/filtering'
+import { filterSections, type Section } from '../core/filtering'
 import { ago } from '../core/format'
 import type { Lane, Signal } from '../core/types'
 import { isOverdue, SECTION_TITLES, subtitle } from '../lanes'
+import { openSettings } from '../native'
 import Banner from './components/Banner.vue'
 import Mark from './components/Mark.vue'
 import SectionHeader from './components/SectionHeader.vue'
@@ -19,12 +20,22 @@ const props = defineProps<{
   showMenu: (signals: Signal[]) => void
   overdueHours: number
   empty: string
+  emptyHint?: string
+  query?: string
 }>()
 
 const expanded = reactive<Record<string, boolean>>({})
 
-const sections = computed(() => props.state.lanes[props.lane])
-const problems = computed(() => props.state.problems.filter((problem) => problem.lanes.includes(props.lane)))
+const sections = computed(() => filterSections(props.state.lanes[props.lane], props.query ?? ''))
+const problems = computed(() => {
+  const shown = new Set<string>()
+  return props.state.problems.filter((problem) => {
+    const key = JSON.stringify(problem.error)
+    if (!problem.lanes.includes(props.lane) || shown.has(key)) return false
+    shown.add(key)
+    return true
+  })
+})
 const notices = computed(() => props.state.notices.filter((notice) => notice.lanes.includes(props.lane)))
 
 const unseenIn = (signals: Signal[]) => signals.filter((signal) => props.state.unseen[signal.id])
@@ -106,9 +117,16 @@ const strongest = (signals: Signal[]): Signal['severity'] =>
         </template>
       </section>
 
-      <div v-if="sections.length === 0 && state.lastRefresh && problems.length === 0" class="empty">
+      <div v-if="sections.length === 0 && query?.trim()" class="empty">
+        <span>No matches for “{{ query.trim() }}”.</span>
+      </div>
+      <div v-else-if="sections.length === 0 && state.lastRefresh && problems.length === 0" class="empty">
         <Mark :size="32" tone="muted" />
         <span>{{ empty }}</span>
+        <template v-if="emptyHint">
+          <span class="hint">{{ emptyHint }}</span>
+          <button class="button" @click="openSettings()">Open Settings</button>
+        </template>
       </div>
     </div>
   </div>
@@ -136,5 +154,11 @@ const strongest = (signals: Signal[]): Signal['severity'] =>
   padding: 48px 12px;
   color: var(--fg-3);
   font-size: 12px;
+}
+
+.hint {
+  max-width: 260px;
+  font-size: 11px;
+  text-align: center;
 }
 </style>

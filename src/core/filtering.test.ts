@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildSections, type FilterOptions } from './filtering'
+import { buildSections, filterSections, type FilterOptions } from './filtering'
 import type { Signal } from './types'
 
 const ORDER = ['changes-requested', 'review-requested', 'pr', 'issue', 'my-pr'] as const
@@ -144,3 +144,36 @@ describe('buildSections', () => {
     expect(sections.map((section) => section.kind)).toEqual([...ORDER])
   })
 })
+
+describe('filterSections', () => {
+  const sections = () =>
+    buildSections(
+      [
+        signal(1, 'pr', { repo: 'acme/api' }),
+        signal(2, 'pr', { repo: 'acme/api' }),
+        signal(3, 'pr', { repo: 'acme/api' }),
+        signal(4, 'pr', { repo: 'acme/api' }),
+        signal(5, 'issue', { repo: 'acme/web' }),
+      ],
+      { order: ORDER, hiddenKinds: [], showBots: true, showDrafts: true, groupThreshold: 3 },
+    )
+
+  it('keeps everything for an empty query', () => {
+    expect(filterSections(sections(), '  ')).toEqual(sections())
+  })
+
+  it('matches title, repository, #number and @person, every word, ignoring case', () => {
+    const ids = (query: string) => filterSections(sections(), query).flatMap((section) => section.signals.map((s) => s.meta?.number))
+    expect(ids('title 2')).toEqual([2])
+    expect(ids('ACME/WEB')).toEqual([5])
+    expect(ids('#4')).toEqual([4])
+    expect(ids('@bob web')).toEqual([5])
+    expect(ids('nothing')).toEqual([])
+  })
+
+  it('unfolds repository groups so every match is its own row', () => {
+    const [prs] = filterSections(sections(), 'acme/api')
+    expect(prs.rows.map((row) => row.type)).toEqual(['item', 'item', 'item', 'item'])
+  })
+})
+

@@ -5,7 +5,7 @@ import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { fetch as httpFetch } from '@tauri-apps/plugin-http'
 import { isPermissionGranted, onAction, requestPermission, sendNotification } from '@tauri-apps/plugin-notification'
 import { load, type Store } from '@tauri-apps/plugin-store'
-import { createBoard, initialBoardState } from '../core/board'
+import { createBoard, initialBoardState, parseSnapshot, type TrayState } from '../core/board'
 import { errorText, toAppError, type AppError } from '../core/errors'
 import type { NotificationSpec } from '../core/notifications'
 import { isOpenable } from '../core/openable'
@@ -14,10 +14,11 @@ import { applyHookEvent, pruneSessions, restoreSessions, type HookEvent, type Se
 import { DEFAULT_SETTINGS, isRepoWatched, muteRepo, type Settings } from '../core/settings'
 import type { Signal, Source } from '../core/types'
 import { describe, isAmbient, isLoud, LANE_ORDER, sourceLanes } from '../lanes'
-import { checkoutPullRequest, copyText, focusTerminal, ghToken, openUrl, revealPanel, secretGet, setBadge, startHookListener } from '../native'
+import { checkoutPullRequest, copyText, focusTerminal, ghToken, openUrl, revealPanel, secretGet, setTray, startHookListener } from '../native'
 import { AGENT_SOURCE_ID, claudeCodeSource } from '../sources/claude-code'
 import { CI_RECOVERY, githubSource } from '../sources/github'
 import { countRepos } from '../sources/github/account'
+import { activitySource } from '../sources/github/activity'
 import { FORGE_TOKEN_KEY, forgeSource } from '../sources/forge'
 import { SENTRY_TOKEN_KEY, sentrySource } from '../sources/sentry'
 import type { HookStatus } from '../core/claude-settings'
@@ -25,6 +26,7 @@ import { hookToken, installHooks, readHookStatus } from './hooks'
 import { announceSettingsChanged, onSettingsChanged, openSettingsStore, readSettings, REPOS_FILE, writeSettings } from './settings-store'
 
 const HEARTBEAT_MS = 30_000
+const OPEN_REFRESH_MS = 30_000
 const SNOOZE_MS = 86_400_000
 
 export async function notify(specs: NotificationSpec[]) {
@@ -51,8 +53,10 @@ export function startBoard() {
   const hooks = reactive<{ status?: HookStatus; busy: boolean }>({ busy: false })
   let storageNotice: string | undefined
   const agents = claudeCodeSource({ sessions: () => sessions, problem: () => listenerProblem, notices: () => (storageNotice ? [...hookNotices, storageNotice] : hookNotices) })
+  const activity = activitySource({ token: ghToken })
   const sources = (): Source[] => [
     github,
+    ...(current.value.hiddenKinds.includes('activity') ? [] : [activity]),
     agents,
     ...(current.value.forgeEnabled ? [forge] : []),
     ...(current.value.sentryEnabled ? [sentry] : []),
@@ -89,6 +93,14 @@ export function startBoard() {
       .flatMap((section) => section.signals)
       .filter((signal) => signal.source === 'forge' && signal.url)
       .map((signal) => new URL(signal.url!).hostname)
+
+  let shownTray = ''
+  function showTray(count: number, tray: TrayState) {
+    const key = `${count}:${tray}`
+    if (key === shownTray) return
+    shownTray = key
+    void setTray(count, tray).catch((error) => report('menu bar', error))
+  }
 
   function report(source: string, error: unknown) {
     state.problems = [...state.problems, { source, lanes: ['incoming', 'outgoing', 'agents'], error: toAppError(error) }]
@@ -164,7 +176,7 @@ export function startBoard() {
         seen: new SeenStore(),
         saveSeen: async () => {},
         notify: () => {},
-        setBadge: (count) => void setBadge(count),
+        setTray: showTray,
         settings: () => current.value,
         order: LANE_ORDER,
         isLoud,
@@ -175,11 +187,12 @@ export function startBoard() {
       await board.refresh()
       return
     }
-    const [store, seenStore, agentStore, reposStore] = await Promise.all([
+    const [store, seenStore, agentStore, reposStore, boardStore] = await Promise.all([
       openSettingsStore(),
       load('seen.json', { defaults: {}, autoSave: false }),
       load('agents.json', { defaults: {}, autoSave: false }),
       load(REPOS_FILE, { defaults: {}, autoSave: false }),
+      load('board.json', { defaults: {}, autoSave: false }),
     ])
     settingsStore = store
     current.value = await readSettings(store)
@@ -205,7 +218,7 @@ export function startBoard() {
         void notify(specs).catch((error) => {
           state.problems = [...state.problems, { source: 'notifications', lanes: ['incoming', 'outgoing'], error: toAppError(error) }]
         }),
-      setBadge: (count) => void setBadge(count),
+      setTray: showTray,
       settings: () => current.value,
       order: LANE_ORDER,
       isLoud,
@@ -213,6 +226,17 @@ export function startBoard() {
       describe,
       recovery: CI_RECOVERY,
     })
+
+    const saved = parseSnapshot(await boardStore.get('snapshot'))
+    if (saved) board.restore(saved)
+    watch(
+      () => state.lastRefresh,
+      () =>
+        void (async () => {
+          await boardStore.set('snapshot', board!.snapshot())
+          await boardStore.save()
+        })().catch((error) => report('storage', error)),
+    )
 
     let known = { account: await reposStore.get<string>('account'), counts: (await reposStore.get<Record<string, number>>('counts')) ?? {} }
     watch(
@@ -253,12 +277,16 @@ export function startBoard() {
       else void revealPanel()
     })
     await getCurrentWebviewWindow().onFocusChanged(({ payload: focused }) => {
-      if (focused) void board?.refresh()
+      if (focused) void board?.refreshIfOlderThan(OPEN_REFRESH_MS)
     })
+    await listen('mark-all-seen', () => void board?.markAllSeen())
     window.addEventListener('online', () => void board?.refresh())
+    let lastBeat = Date.now()
     setInterval(() => {
+      const woke = Date.now() - lastBeat > 2 * HEARTBEAT_MS
+      lastBeat = Date.now()
       sessions = pruneSessions(sessions, new Date())
-      void board?.refreshIfOlderThan(current.value.refreshMinutes * 60_000)
+      void (woke ? board?.refresh() : board?.refreshIfOlderThan(current.value.refreshMinutes * 60_000))
     }, HEARTBEAT_MS)
 
     await board.refresh()
@@ -278,5 +306,6 @@ export function startBoard() {
     showMenu: (targets: Signal[], folders: Record<string, string>) => void showMenu(targets, folders).catch((error) => report('menu', error)),
     refresh: () => board?.refresh(),
     markSeen: (ids: string[]) => board?.markSeen(ids),
+    markAllSeen: () => board?.markAllSeen(),
   }
 }

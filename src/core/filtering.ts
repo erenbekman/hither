@@ -51,3 +51,28 @@ function rows(signals: Signal[], threshold: number): Row[] {
   }
   return result
 }
+
+function searchText(signal: Signal): string {
+  const meta = signal.meta ?? {}
+  return [
+    signal.title,
+    signal.project,
+    signal.actor ? `@${signal.actor}` : '',
+    meta.number !== undefined ? `#${meta.number}` : '',
+    typeof meta.branch === 'string' ? meta.branch : '',
+  ]
+    .join(' ')
+    .toLowerCase()
+}
+
+export function filterSections(sections: Section[], query: string): Section[] {
+  const words = query.toLowerCase().split(/\s+/).filter(Boolean)
+  if (words.length === 0) return sections
+  return sections.flatMap((section) => {
+    const signals = section.signals.filter((signal) => {
+      const text = searchText(signal)
+      return words.every((word) => text.includes(word))
+    })
+    return signals.length > 0 ? [{ ...section, signals, rows: signals.map((signal): Row => ({ type: 'item', signal })) }] : []
+  })
+}

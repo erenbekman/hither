@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
+import type { TrayState } from './core/board'
 
 export const ghToken = () => invoke<string>('gh_token')
 export const secretGet = (key: string) => invoke<string | null>('secret_get', { key })
@@ -6,7 +7,7 @@ export const secretSet = (key: string, value: string) => invoke<void>('secret_se
 export const secretDelete = (key: string) => invoke<void>('secret_delete', { key })
 export const openUrl = (url: string) => invoke<void>('open_url', { url })
 export const copyText = (text: string) => invoke<void>('copy_text', { text })
-export const setBadge = (count: number) => invoke<void>('set_badge', { count })
+export const setTray = (count: number, state: TrayState) => invoke<void>('set_tray', { count, state })
 export const revealPanel = () => invoke<void>('reveal_panel')
 export const startHookListener = (token: string) => invoke<number>('start_hook_listener', { token })
 export const claudeSettingsRead = () => invoke<string | null>('claude_settings_read')

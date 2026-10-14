@@ -67,11 +67,14 @@ export function startSuggestions(deps: { board: BoardState; settings: () => Sett
   }
 
   function recompute() {
+    if (!deps.board.lastRefresh) return
     const settings = deps.settings()
     const signals = Object.values(deps.board.lanes).flat().flatMap((section) => section.signals)
     const cards = suggest({ signals, now: new Date(), sentryOrg: settings.sentryOrg, sentryProjectForSite: settings.sentryProjectForSite })
     const ids = new Set(cards.map((card) => card.id))
     stored.dismissed = stored.dismissed.filter((id) => ids.has(id))
+    stored.summaries = Object.fromEntries(Object.entries(stored.summaries).filter(([id]) => ids.has(id)))
+    state.summaries = { ...stored.summaries }
     state.cards = cards.filter((card) => !stored.dismissed.includes(card.id))
 
     const reminders = state.cards.filter((card) => card.remind && !stored.reminded.includes(card.id))

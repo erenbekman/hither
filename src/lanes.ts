@@ -1,5 +1,6 @@
 import type { Lane, Signal } from './core/types'
-import { CI_KINDS, describeSignal as describeGitHub, KIND_ORDER, KIND_TITLES, QUIET_KINDS } from './sources/github'
+import { ACTIVITY_LABELS, CI_KINDS, describeSignal as describeGitHub, KIND_ORDER, KIND_TITLES, QUIET_KINDS } from './sources/github'
+import { ACTIVITY_SOURCE_ID } from './sources/github/activity'
 import { describeDeployment } from './sources/forge'
 import { describeIssue } from './sources/sentry'
 import { AGENT_SOURCE_ID, describeSession } from './sources/claude-code'
@@ -31,6 +32,7 @@ export const SECTION_TITLES: Record<string, string> = {
 export function sourceLanes(source: string): Lane[] {
   if (source === 'github') return ['incoming', 'outgoing', 'agents']
   if (source === AGENT_SOURCE_ID) return ['agents']
+  if (source === ACTIVITY_SOURCE_ID) return ['incoming']
   return ['outgoing']
 }
 
@@ -75,6 +77,7 @@ export function subtitle(signal: Signal): string {
         `${signal.project} #${meta.number}`,
         signal.actor && `@${signal.actor}`,
         meta.isDraft ? 'draft' : undefined,
+        signal.kind === 'activity' ? ACTIVITY_LABELS[String(meta.reason)] : undefined,
       ]
         .filter(Boolean)
         .join(' · ')

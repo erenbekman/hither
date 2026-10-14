@@ -4,6 +4,7 @@ import Group from '../components/Group.vue'
 import Toggle from '../components/Toggle.vue'
 import SettingRow from './SettingRow.vue'
 import type { Lane } from '../../core/types'
+import { LANE_ORDER, SECTION_TITLES } from '../../lanes'
 import { toggleIn, useSettings } from './context'
 
 const { state, save, updates, changeLaunchAtLogin } = useSettings()
@@ -14,6 +15,7 @@ const LANES: { lane: Lane; label: string; hint: string }[] = [
   { lane: 'agents', label: 'Agents', hint: 'Claude sessions waiting for you' },
 ]
 const clock = (event: Event) => (event.target as HTMLInputElement).value
+const checked = (event: Event) => (event.target as HTMLInputElement).checked
 </script>
 
 <template>
@@ -73,6 +75,21 @@ const clock = (event: Event) => (event.target as HTMLInputElement).value
     </SettingRow>
   </Group>
 
+  <Group label="Sections">
+    <SettingRow v-for="item in LANES" :key="item.lane" :label="item.label" stacked>
+      <div class="kinds">
+        <label v-for="kind in LANE_ORDER[item.lane]" :key="kind" class="check">
+          <input
+            type="checkbox"
+            :checked="!state.settings.hiddenKinds.includes(kind)"
+            @change="save({ hiddenKinds: toggleIn(state.settings.hiddenKinds, kind, !checked($event)) })"
+          />
+          {{ SECTION_TITLES[kind] ?? kind }}
+        </label>
+      </div>
+    </SettingRow>
+  </Group>
+
   <Group label="Updates">
     <SettingRow
       :label="`Hither ${updates.state.current ?? '…'}`"
@@ -96,6 +113,19 @@ const clock = (event: Event) => (event.target as HTMLInputElement).value
 </template>
 
 <style scoped>
+.kinds {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 12px;
+}
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12.5px;
+}
+
 .dash {
   color: var(--fg-3);
 }

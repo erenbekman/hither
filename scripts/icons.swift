@@ -53,9 +53,27 @@ func write(_ image: CGImage, to url: URL) {
     }
 }
 
-func trayIcon(size: Int) -> CGImage {
+enum TrayState: String, CaseIterable {
+    case normal = "tray"
+    case alert = "tray-alert"
+    case error = "tray-error"
+}
+
+func trayIcon(size: Int, state: TrayState) -> CGImage {
     image(size: size) { ctx in
-        drawMark(ctx, in: CGRect(x: 0, y: 0, width: size, height: size), dot: .black, ring: .black)
+        let rect = CGRect(x: 0, y: 0, width: size, height: size)
+        if state == .error { ctx.setAlpha(0.4) }
+        drawMark(ctx, in: rect, dot: .black, ring: .black)
+        guard state == .alert else { return }
+        let unit = CGFloat(size) / 18
+        let center = CGPoint(x: 15 * unit, y: CGFloat(size) - 3.6 * unit)
+        let badge = 2.4 * unit
+        let gap = badge + 1.1 * unit
+        ctx.setBlendMode(.clear)
+        ctx.fillEllipse(in: CGRect(x: center.x - gap, y: center.y - gap, width: gap * 2, height: gap * 2))
+        ctx.setBlendMode(.normal)
+        ctx.setFillColor(RGBA.black.cg)
+        ctx.fillEllipse(in: CGRect(x: center.x - badge, y: center.y - badge, width: badge * 2, height: badge * 2))
     }
 }
 
@@ -95,7 +113,9 @@ guard CommandLine.arguments.count == 2 else {
     exit(2)
 }
 let out = URL(fileURLWithPath: CommandLine.arguments[1], isDirectory: true)
-write(trayIcon(size: 18), to: out.appendingPathComponent("tray-template.png"))
-write(trayIcon(size: 36), to: out.appendingPathComponent("tray-template@2x.png"))
+for state in TrayState.allCases {
+    write(trayIcon(size: 18, state: state), to: out.appendingPathComponent("\(state.rawValue)-template.png"))
+    write(trayIcon(size: 36, state: state), to: out.appendingPathComponent("\(state.rawValue)-template@2x.png"))
+}
 write(appIcon(), to: out.appendingPathComponent("app-icon.png"))
-print("wrote tray-template.png, tray-template@2x.png, app-icon.png to \(out.path)")
+print("wrote tray, tray-alert and tray-error templates and app-icon.png to \(out.path)")

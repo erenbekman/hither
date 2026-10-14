@@ -41,6 +41,11 @@ function githubSignals(now: Date): Signal[] {
     }),
     pr(421, 'conflicting', 'Split the billing worker into two queues', 'eren', 90, { severity: 'attention' }),
     pr(415, 'ready-to-merge', 'Retry failed webhooks with backoff', 'eren', 200),
+    {
+      ...pr(388, 'activity', 'Store webhook secrets per endpoint', 'eren', 12),
+      actor: undefined,
+      meta: { number: 388, type: 'pr', reason: 'comment', branch: 'feature/388' },
+    },
     pr(409, 'assigned', 'Webhook signatures fail behind the proxy', 'grace', 10 * 60, {
       id: 'https://github.com/acme/api/issues/409',
       url: 'https://github.com/acme/api/issues/409',

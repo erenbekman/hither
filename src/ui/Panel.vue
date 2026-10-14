@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, reactive, ref } from 'vue'
+import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { ago } from '../core/format'
 import type { Lane, Signal } from '../core/types'
 import { openSettings, openUrl } from '../native'
@@ -41,6 +42,34 @@ function moveRow(step: number) {
   rows[next].scrollIntoView({ block: 'nearest' })
 }
 
+const search = reactive({ open: false, query: '' })
+const searchInput = ref<HTMLInputElement>()
+
+function openSearch(text = '') {
+  search.open = true
+  search.query += text
+  void nextTick(() => searchInput.value?.focus())
+}
+
+function closeSearch() {
+  search.open = false
+  search.query = ''
+}
+
+function onSearchKey(event: KeyboardEvent) {
+  if (event.key === 'Escape') {
+    event.preventDefault()
+    if (search.query) search.query = ''
+    else closeSearch()
+  } else if (event.key === 'ArrowDown') {
+    event.preventDefault()
+    moveRow(1)
+  } else if (event.key === 'Enter') {
+    event.preventDefault()
+    document.querySelector<HTMLElement>('[data-row]')?.click()
+  }
+}
+
 function onKey(event: KeyboardEvent) {
   if ((event.target as HTMLElement).closest('input, textarea, select')) return
   if (event.metaKey && event.key === 'r') {
@@ -49,8 +78,24 @@ function onKey(event: KeyboardEvent) {
   } else if (event.metaKey && event.key === ',') {
     event.preventDefault()
     void openSettings()
+  } else if (event.metaKey && event.key === 'o' && board.state.account) {
+    event.preventDefault()
+    void openUrl(`https://github.com/${board.state.account}`)
+  } else if (event.metaKey && event.shiftKey && event.key.toLowerCase() === 'a') {
+    event.preventDefault()
+    void board.markAllSeen()
+  } else if (event.metaKey && event.key === 'f' && view.tab !== 'suggestions') {
+    event.preventDefault()
+    openSearch()
+  } else if (event.key === 'Escape') {
+    event.preventDefault()
+    if (search.open) closeSearch()
+    else void getCurrentWebviewWindow().hide()
   } else if (event.metaKey || event.ctrlKey || event.altKey) {
     return
+  } else if (view.tab !== 'suggestions' && event.key.length === 1 && event.key !== ' ') {
+    event.preventDefault()
+    openSearch(event.key)
   } else if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
     event.preventDefault()
     const index = TAB_ORDER.indexOf(view.tab)
@@ -90,6 +135,15 @@ const profile = computed(() => board.state.profile)
 const quota = computed(() => (showsQuota(board.settings().quotaVisibility, board.state.quota) ? board.state.quota : undefined))
 const clock = (at: string) => new Date(at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 
+const emptyHint = computed(() => {
+  const settings = board.settings()
+  if (view.tab === 'outgoing' && !settings.forgeEnabled && !settings.sentryEnabled && settings.watchedRepos.length === 0) {
+    return 'Failed checks on your pull requests show up here. Connect Forge or Sentry, or watch a branch, for more.'
+  }
+  if (view.tab === 'incoming' && settings.repoListIsAllowList) return 'Only checked repositories are watched.'
+  return undefined
+})
+
 const showHookBanner = computed(() => view.tab === 'agents' && board.hooks.status !== undefined && board.hooks.status !== 'installed')
 </script>
 
@@ -97,6 +151,17 @@ const showHookBanner = computed(() => view.tab === 'agents' && board.hooks.statu
   <main class="panel">
     <div class="top">
       <Segmented :items="tabs" :model-value="view.tab" @update:model-value="view.tab = $event as Tab" />
+      <div v-if="search.open && view.tab !== 'suggestions'" class="search">
+        <input
+          ref="searchInput"
+          v-model="search.query"
+          class="text-input"
+          type="search"
+          placeholder="Filter by title, repo, #number or @person"
+          aria-label="Filter"
+          @keydown="onSearchKey"
+        />
+      </div>
     </div>
 
     <header class="account">
@@ -170,6 +235,8 @@ const showHookBanner = computed(() => view.tab === 'agents' && board.hooks.statu
       :show-menu="(signals: Signal[]) => board.showMenu(signals, suggestions.state.folders)"
       :overdue-hours="board.settings().reviewOverdueHours"
       :empty="EMPTY[view.tab]"
+      :empty-hint="emptyHint"
+      :query="search.open ? search.query : ''"
     />
     <SuggestionsView
       v-else
@@ -197,6 +264,15 @@ const showHookBanner = computed(() => view.tab === 'agents' && board.hooks.statu
 
 .top {
   padding: 8px 8px 4px;
+}
+
+.search {
+  display: flex;
+  margin-top: 6px;
+}
+
+.search .text-input {
+  flex: 1;
 }
 
 .account {

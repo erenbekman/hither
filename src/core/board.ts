@@ -7,6 +7,48 @@ import type { SeenState, SeenStore } from './seen-store'
 import type { Settings } from './settings'
 import type { Lane, Profile, Quota, Signal, Source } from './types'
 
+export type TrayState = 'normal' | 'alert' | 'error'
+
+export interface BoardSnapshot {
+  savedAt: string
+  account?: string
+  profile?: Profile
+  sources: Record<string, { at: string; signals: Signal[] }>
+}
+
+type Json = Record<string, unknown>
+const isObject = (value: unknown): value is Json => typeof value === 'object' && value !== null && !Array.isArray(value)
+const SEVERITIES = ['info', 'attention', 'critical']
+
+function isSignal(value: unknown): value is Signal {
+  return (
+    isObject(value) &&
+    ['id', 'source', 'kind', 'project', 'title', 'at'].every((key) => typeof value[key] === 'string') &&
+    LANES.includes(value.lane as Lane) &&
+    SEVERITIES.includes(value.severity as string) &&
+    (value.url === undefined || typeof value.url === 'string') &&
+    (value.meta === undefined || isObject(value.meta))
+  )
+}
+
+const isProfile = (value: unknown): value is Profile =>
+  isObject(value) && typeof value.followers === 'number' && typeof value.stars === 'number' && typeof value.starsAreExact === 'boolean'
+
+export function parseSnapshot(raw: unknown): BoardSnapshot | undefined {
+  if (!isObject(raw) || typeof raw.savedAt !== 'string' || !isObject(raw.sources)) return undefined
+  const sources = Object.fromEntries(
+    Object.entries(raw.sources).flatMap(([id, entry]) =>
+      isObject(entry) && typeof entry.at === 'string' && Array.isArray(entry.signals) ? [[id, { at: entry.at, signals: entry.signals.filter(isSignal) }]] : [],
+    ),
+  )
+  return {
+    savedAt: raw.savedAt,
+    account: typeof raw.account === 'string' ? raw.account : undefined,
+    profile: isProfile(raw.profile) ? raw.profile : undefined,
+    sources,
+  }
+}
+
 export interface Problem {
   source: string
   lanes: Lane[]
@@ -40,7 +82,7 @@ export interface BoardDeps {
   seen: SeenStore
   saveSeen: (state: SeenState) => Promise<void>
   notify: (specs: NotificationSpec[]) => void
-  setBadge: (count: number) => void
+  setTray: (count: number, state: TrayState) => void
   settings: () => Settings
   order: Record<Lane, readonly string[]>
   isLoud: (signal: Signal) => boolean
@@ -91,7 +133,14 @@ export function createBoard(state: BoardState, deps: BoardDeps) {
         .filter((signal) => state.unseen[signal.id] && deps.isLoud(signal)).length
     }
     state.badge = LANES.reduce((sum, lane) => sum + state.laneBadges[lane], 0)
-    deps.setBadge(state.badge)
+    updateTray()
+  }
+
+  function updateTray() {
+    const critical = LANES.some((lane) =>
+      state.lanes[lane].some((section) => section.signals.some((s) => s.severity === 'critical' && state.unseen[s.id] && deps.isLoud(s))),
+    )
+    deps.setTray(state.badge, critical ? 'alert' : state.problems.length > 0 ? 'error' : 'normal')
   }
 
   function publishStatus() {
@@ -105,6 +154,7 @@ export function createBoard(state: BoardState, deps: BoardDeps) {
     state.notices = [...notices].flatMap(([source, texts]) =>
       texts.map((text) => ({ source, lanes: deps.sourceLanes(source), text })),
     )
+    updateTray()
   }
 
   async function persist() {
@@ -146,6 +196,20 @@ export function createBoard(state: BoardState, deps: BoardDeps) {
     }
   }
 
+  function arrange(candidates: Signal[], at: Date): Record<Lane, Section[]> {
+    const settings = deps.settings()
+    const all = candidates.filter((signal) => !deps.seen.isSnoozed(signal.id, at))
+    const options = {
+      hiddenKinds: settings.hiddenKinds,
+      showBots: settings.showBots,
+      showDrafts: settings.showDrafts,
+      groupThreshold: settings.repoGroupThreshold,
+    }
+    return Object.fromEntries(
+      LANES.map((lane) => [lane, buildSections(all.filter((s) => s.lane === lane), { ...options, order: deps.order[lane] })]),
+    ) as Record<Lane, Section[]>
+  }
+
   async function poll(only?: string[]) {
     const sources = deps.sources()
     const active = new Set(sources.map((source) => source.id))
@@ -162,17 +226,7 @@ export function createBoard(state: BoardState, deps: BoardDeps) {
     deps.seen.recordReturned(new Set([...signals.values()].flat().map((signal) => signal.id)), at)
     deps.seen.prune(at)
     deps.seen.wake(at)
-    const all = returned.filter((signal) => !deps.seen.isSnoozed(signal.id, at))
-
-    const options = {
-      hiddenKinds: settings.hiddenKinds,
-      showBots: settings.showBots,
-      showDrafts: settings.showDrafts,
-      groupThreshold: settings.repoGroupThreshold,
-    }
-    const lanes = Object.fromEntries(
-      LANES.map((lane) => [lane, buildSections(all.filter((s) => s.lane === lane), { ...options, order: deps.order[lane] })]),
-    ) as Record<Lane, Section[]>
+    const lanes = arrange(returned, at)
     const shown = LANES.flatMap((lane) => lanes[lane].flatMap((section) => section.signals))
     const fullOrder = LANES.flatMap((lane) => deps.order[lane])
     deps.seen.promote(new Map(LANES.flatMap((lane) => lanes[lane].flatMap((section) => section.signals.map((s) => [s.id, section.kind] as const)))), fullOrder)
@@ -180,7 +234,8 @@ export function createBoard(state: BoardState, deps: BoardDeps) {
     const quietSources = new Set(
       outcomes.filter(([id, ok]) => ok && deps.seen.markFirstRunDone(id)).map(([id]) => id),
     )
-    const fresh = deps.seen.unnotified(shown.filter((signal) => deps.isLoud(signal) && !quietSources.has(signal.source)))
+    const quietIds = new Set([...quietSources].flatMap((id) => (signals.get(id) ?? []).map((signal) => signal.id)))
+    const fresh = deps.seen.unnotified(shown.filter((signal) => deps.isLoud(signal) && !quietIds.has(signal.id)))
     deps.seen.markNotified(shown.map((signal) => signal.id))
     await persist()
     const audible = fresh.filter((signal) => canNotify(settings, signal.lane, at))
@@ -222,6 +277,36 @@ export function createBoard(state: BoardState, deps: BoardDeps) {
     async snooze(ids: string[], until: Date) {
       deps.seen.snooze(ids, until)
       await refresh([])
+    },
+    snapshot(): BoardSnapshot {
+      return {
+        savedAt: state.lastRefresh ?? now().toISOString(),
+        account: state.account,
+        profile: state.profile,
+        sources: Object.fromEntries([...signals].map(([id, list]) => [id, { at: succeededAt.get(id) ?? now().toISOString(), signals: list }])),
+      }
+    },
+    restore(snapshot: BoardSnapshot) {
+      if (snapshot.account !== deps.seen.account) return
+      const active = new Set(deps.sources().map((source) => source.id))
+      for (const [id, entry] of Object.entries(snapshot.sources)) {
+        if (!active.has(id) || signals.has(id)) continue
+        signals.set(id, entry.signals)
+        succeededAt.set(id, entry.at)
+      }
+      state.account ??= snapshot.account
+      state.profile ??= snapshot.profile
+      state.lastRefresh ??= snapshot.savedAt
+      const at = now()
+      state.lanes = arrange(deriveRecoveries([...signals.values()].flat(), deps.seen, at, deps.recovery), at)
+      publishStatus()
+      updateUnseen()
+    },
+    async markAllSeen() {
+      deps.seen.markSeen(Object.keys(state.unseen), now())
+      updateUnseen()
+      await persist()
+      publishStatus()
     },
     async markSeen(ids: string[]) {
       deps.seen.markSeen(ids, now())

@@ -9,6 +9,7 @@ export const KIND_ORDER = [
   'changes-requested',
   'conflicting',
   'review-requested',
+  'activity',
   'ready-to-merge',
   'assigned',
   'mentioned',
@@ -35,6 +36,7 @@ export const KIND_TITLES: Record<GitHubKind, string> = {
   'changes-requested': 'Changes Requested',
   conflicting: 'Merge Conflicts',
   'review-requested': 'Review Requested',
+  activity: 'New Activity',
   'ready-to-merge': 'Ready to Merge',
   assigned: 'Assigned to You',
   mentioned: 'Mentioned',
@@ -54,6 +56,21 @@ const SEARCH_KIND: Record<SearchKey, GitHubKind> = {
 }
 
 const ATTENTION_KINDS: readonly string[] = ['changes-requested', 'review-requested', 'conflicting']
+
+export const ACTIVITY_LABELS: Record<string, string> = {
+  author: 'your thread',
+  comment: 'new comment',
+  mention: 'mentioned',
+  team_mention: 'team mentioned',
+  state_change: 'state changed',
+}
+
+const ACTIVITY_VERBS: Record<string, string> = {
+  comment: 'New comment on',
+  mention: 'Mentioned in',
+  team_mention: 'Your team was mentioned in',
+  state_change: 'State changed on',
+}
 
 export function myPullRequestKind(item: Item): GitHubKind {
   if (item.mergeable === 'CONFLICTING') return 'conflicting'
@@ -154,6 +171,8 @@ export function describeSignal(signal: Signal): string {
       return `Ready to merge #${signal.meta?.number}`
     case 'conflicting':
       return `Merge conflicts in #${signal.meta?.number}`
+    case 'activity':
+      return `${ACTIVITY_VERBS[String(signal.meta?.reason)] ?? 'New activity on'} #${signal.meta?.number}`
     default: {
       const what = signal.meta?.type === 'issue' ? 'issue' : 'pull request'
       const verb = signal.kind === 'mentioned' ? 'Mentioned in' : signal.kind === 'assigned' ? 'Assigned' : 'New'

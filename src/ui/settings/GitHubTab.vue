@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { isRepoWatched, sameRepo, setRepoWatched, type QuotaVisibility } from '../../core/settings'
-import { KIND_ORDER, KIND_TITLES } from '../../sources/github'
 import Group from '../components/Group.vue'
 import Toggle from '../components/Toggle.vue'
 import SettingRow from './SettingRow.vue'
@@ -89,16 +88,6 @@ function addRepo() {
   </Group>
 
   <Group label="Incoming lane">
-    <SettingRow label="Sections" stacked>
-      <label v-for="kind in KIND_ORDER" :key="kind" class="check">
-        <input
-          type="checkbox"
-          :checked="!state.settings.hiddenKinds.includes(kind)"
-          @change="save({ hiddenKinds: toggleIn(state.settings.hiddenKinds, kind, !checked($event)) })"
-        />
-        {{ KIND_TITLES[kind] }}
-      </label>
-    </SettingRow>
     <SettingRow label="Show bot pull requests">
       <Toggle label="Show bot pull requests" :model-value="state.settings.showBots" @update:model-value="save({ showBots: $event })" />
     </SettingRow>

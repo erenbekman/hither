@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { DEFAULT_SETTINGS } from '../../core/settings'
 import { response, withData } from './fixture.test-data'
-import { githubSource } from './index'
+import { describeSignal, githubSource } from './index'
 
 const ctx = { signal: new AbortController().signal }
 const answer = (body: unknown) => vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify(body), { status: 200 }))
@@ -125,6 +125,14 @@ describe('githubSource', () => {
       [84, 'my-pr', 'info'],
     ])
     expect(incoming[0].meta?.branch).toBe('feature/80')
+  })
+
+  it('names new activity by why GitHub sent it', () => {
+    const activity = (reason: string) =>
+      describeSignal({ id: 'a', source: 'github', lane: 'incoming', kind: 'activity', severity: 'info', project: 'a/b', title: 'T', at: '', meta: { number: 12, reason } })
+    expect(activity('comment')).toBe('New comment on #12')
+    expect(activity('mention')).toBe('Mentioned in #12')
+    expect(activity('author')).toBe('New activity on #12')
   })
 })
 

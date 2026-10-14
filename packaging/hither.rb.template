@@ -23,7 +23,7 @@ cask "hither" do
 
   caveats <<~EOS
     If you installed the Claude Code hooks, remove them first from
-    Hither → Settings → Claude Code → Remove hooks.
+    Hither → Settings → Agents → Remove.
     Tokens stay in your login Keychain under the service "dev.hither.app".
   EOS
 end

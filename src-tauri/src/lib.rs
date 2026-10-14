@@ -11,9 +11,9 @@ use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
 use tauri::image::Image;
-use tauri::menu::{Menu, MenuItem};
+use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
-use tauri::{AppHandle, Manager, TitleBarStyle, WebviewUrl, WebviewWindowBuilder, WindowEvent};
+use tauri::{AppHandle, Emitter, Manager, TitleBarStyle, WebviewUrl, WebviewWindowBuilder, WindowEvent};
 use tauri_plugin_positioner::{Position, WindowExt};
 
 const PANEL: &str = "panel";
@@ -63,10 +63,17 @@ fn restart_app(app: AppHandle) {
 }
 
 #[tauri::command]
-fn set_badge(app: AppHandle, count: u32) {
-    if let Some(tray) = app.tray_by_id(TRAY) {
-        let _ = tray.set_title((count > 0).then(|| format!(" {count}")));
-    }
+fn set_tray(app: AppHandle, count: u32, state: String) -> Result<(), String> {
+    let icon: &[u8] = match state.as_str() {
+        "normal" => include_bytes!("../icons/tray-template@2x.png"),
+        "alert" => include_bytes!("../icons/tray-alert-template@2x.png"),
+        "error" => include_bytes!("../icons/tray-error-template@2x.png"),
+        _ => return Err(format!("unknown tray state {state}")),
+    };
+    let Some(tray) = app.tray_by_id(TRAY) else { return Ok(()) };
+    tray.set_icon(Some(Image::from_bytes(icon).map_err(|e| e.to_string())?)).map_err(|e| e.to_string())?;
+    tray.set_icon_as_template(true).map_err(|e| e.to_string())?;
+    tray.set_title((count > 0).then(|| format!(" {count}"))).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -108,9 +115,11 @@ fn open_settings(app: &AppHandle) {
 }
 
 fn setup_tray(app: &AppHandle) -> tauri::Result<()> {
+    let mark_all_seen = MenuItem::with_id(app, "mark-all-seen", "Mark All as Seen", true, None::<&str>)?;
+    let separator = PredefinedMenuItem::separator(app)?;
     let settings = MenuItem::with_id(app, "settings", "Settings…", true, Some("Cmd+,"))?;
     let quit = MenuItem::with_id(app, "quit", "Quit Hither", true, Some("Cmd+Q"))?;
-    let menu = Menu::with_items(app, &[&settings, &quit])?;
+    let menu = Menu::with_items(app, &[&mark_all_seen, &separator, &settings, &quit])?;
 
     TrayIconBuilder::with_id(TRAY)
         .icon(Image::from_bytes(include_bytes!("../icons/tray-template@2x.png"))?)
@@ -119,6 +128,9 @@ fn setup_tray(app: &AppHandle) -> tauri::Result<()> {
         .menu(&menu)
         .show_menu_on_left_click(false)
         .on_menu_event(|app, event| match event.id().as_ref() {
+            "mark-all-seen" => {
+                let _ = app.emit("mark-all-seen", ());
+            }
             "settings" => open_settings(app),
             "quit" => app.exit(0),
             _ => {}
@@ -155,7 +167,7 @@ pub fn run() {
             secret::secret_set,
             secret::secret_delete,
             reveal_panel,
-            set_badge,
+            set_tray,
             restart_app,
             open_settings_window,
             open_url,

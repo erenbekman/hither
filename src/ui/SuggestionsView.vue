@@ -32,6 +32,7 @@ function label(action: SuggestionAction): string {
 
 <template>
   <div class="suggestions">
+    <Banner v-if="state.errors.boot" tone="error" :error="state.errors.boot" />
     <div class="list">
       <article v-for="card in state.cards" :key="card.id" class="card">
         <header>

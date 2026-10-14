@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { createBoard, initialBoardState, type BoardDeps } from './board'
+import { createBoard, initialBoardState, parseSnapshot, type BoardDeps } from './board'
 import { SeenStore } from './seen-store'
 import { DEFAULT_SETTINGS } from './settings'
 import type { Lane, PollResult, Signal, Source } from './types'
@@ -48,7 +48,7 @@ function setup(sources: Source[], overrides: Partial<BoardDeps> = {}) {
     seen: new SeenStore(),
     saveSeen: vi.fn(async () => {}),
     notify: vi.fn(),
-    setBadge: vi.fn(),
+    setTray: vi.fn(),
     settings: () => DEFAULT_SETTINGS,
     order: ORDER,
     isLoud: (s: Signal) => (s.lane === 'incoming' ? s.kind !== 'my-pr' : s.severity !== 'info'),
@@ -68,7 +68,7 @@ describe('createBoard', () => {
     await board.refresh()
     expect(deps.notify).not.toHaveBeenCalled()
     expect(state.badge).toBe(2)
-    expect(deps.setBadge).toHaveBeenLastCalledWith(2)
+    expect(deps.setTray).toHaveBeenLastCalledWith(2, 'normal')
     expect(state.account).toBe('alice')
   })
 
@@ -328,6 +328,71 @@ describe('createBoard', () => {
     await board.refresh()
     expect(state.problems[0].staleSince).toBe('2026-10-14T12:30:00.000Z')
     expect(state.lanes.incoming.flatMap((section) => section.signals)).toHaveLength(1)
+  })
+
+  it('marks every lane as seen at once', async () => {
+    const { state, board } = setup([fakeSource('github', [ok([signal(1), signal(2, 'ci-failed'), signal(3, 'issue')])])])
+    await board.refresh()
+    expect(state.badge).toBe(3)
+    await board.markAllSeen()
+    expect(state.unseen).toEqual({})
+    expect(state.badge).toBe(0)
+  })
+
+  it('shows an alert icon for unseen critical items and an error icon while a source fails', async () => {
+    const alert = setup([fakeSource('github', [ok([signal(1, 'deploy-failed')])])])
+    await alert.board.refresh()
+    expect(alert.deps.setTray).toHaveBeenLastCalledWith(1, 'alert')
+    await alert.board.markAllSeen()
+    expect(alert.deps.setTray).toHaveBeenLastCalledWith(0, 'normal')
+
+    const failing = setup([fakeSource('github', [{ kind: 'network', message: 'offline' }])])
+    await failing.board.refresh()
+    expect(failing.deps.setTray).toHaveBeenLastCalledWith(0, 'error')
+  })
+
+  it('keeps a new source quiet on its first run even when its signals name another source', async () => {
+    const github = fakeSource('github', [ok([signal(1)]), ok([signal(1)]), ok([signal(1)])])
+    const activity = fakeSource('github-activity', [ok([signal(2)]), ok([signal(2), signal(3)])])
+    const sources: Source[] = [github]
+    const { deps, board } = setup(sources, { sourceLanes: () => ['incoming'] })
+    await board.refresh()
+    sources.push(activity)
+    await board.refresh()
+    expect(deps.notify).not.toHaveBeenCalled()
+    await board.refresh()
+    expect(notified(deps).map((spec) => spec.url)).toEqual([signal(3).url])
+  })
+
+  it('brings the last lists back on launch without notifying', async () => {
+    const profile = { followers: 3, stars: 2, starsAreExact: true }
+    const first = setup([fakeSource('github', [ok([signal(1), signal(2, 'ci-failed')], { account: 'alice', profile })])])
+    await first.board.refresh()
+    const saved = parseSnapshot(JSON.parse(JSON.stringify(first.board.snapshot())))!
+    const second = setup([fakeSource('github', [])], { seen: new SeenStore(first.deps.seen.toJSON()) })
+    second.board.restore(saved)
+    expect(second.state.lanes.incoming.flatMap((section) => section.signals)).toHaveLength(1)
+    expect(second.state.lanes.outgoing.flatMap((section) => section.signals)).toHaveLength(1)
+    expect(second.state).toMatchObject({ account: 'alice', profile, lastRefresh: first.state.lastRefresh, badge: 2 })
+    expect(second.deps.notify).not.toHaveBeenCalled()
+  })
+
+  it('does not restore lists saved for another account', async () => {
+    const first = setup([fakeSource('github', [ok([signal(1)], { account: 'alice' })])])
+    await first.board.refresh()
+    const saved = parseSnapshot(JSON.parse(JSON.stringify(first.board.snapshot())))!
+    const other = new SeenStore()
+    other.switchAccount('bob')
+    const second = setup([fakeSource('github', [])], { seen: other })
+    second.board.restore(saved)
+    expect(second.state.lanes.incoming).toEqual([])
+  })
+
+  it('reads only well-formed snapshots and drops broken signals', () => {
+    expect(parseSnapshot(null)).toBeUndefined()
+    expect(parseSnapshot({ sources: {} })).toBeUndefined()
+    const parsed = parseSnapshot({ savedAt: '2026-10-14T12:00:00Z', sources: { github: { at: '2026-10-14T12:00:00Z', signals: [signal(1), { id: 3 }] } } })
+    expect(parsed?.sources.github.signals).toEqual([signal(1)])
   })
 })
 
