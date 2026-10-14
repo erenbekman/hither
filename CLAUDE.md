@@ -32,10 +32,12 @@ Her kaynak `src/sources/<kaynak>/` altında, verisini tek tipe (`Signal`, `src/c
 - `src-tauri/src/lib.rs` — tray, popover, ayarlar penceresi, `set_badge`, `open_url`, `reveal_panel`
 - `src-tauri/src/gh.rs` — `gh_token` (tam yollar → PATH, 5 sn watchdog)
 - `src-tauri/src/secret.rs` — `secret_get/set/delete` (Keychain)
-- `src/core` — tipler, hatalar, ayarlar, `RefreshGate`, filtreleme, `SeenStore`, bildirim planı, `incoming` yenileme döngüsü
-- `src/sources/github` — sorgu kurucu, GraphQL istemcisi, cevap ayrıştırıcı, `githubSource`
-- `src/sources/{forge,sentry,claude-code}` — sonraki aşamaların kaynak adapter'ları
-- `src/ui` — Vue bileşenleri ve Tauri'ye bağlanan runtime (`incoming-runtime.ts`, `settings-store.ts`)
+- `src/core` — tipler, hatalar, ayarlar, `RefreshGate`, filtreleme, `SeenStore`, bildirim planı, `board` (çok kaynaklı yenileme döngüsü), `recovery` (CI düzeldi), `http`, `openable`
+- `src/sources/github` — sorgu kurucu, GraphQL istemcisi (CI + izlenen branch'ler dahil), cevap ayrıştırıcı, `githubSource`
+- `src/sources/forge`, `src/sources/sentry` — Outgoing adapter'ları; token'lar Keychain'de (`forge-token`, `sentry-token`)
+- `src/sources/claude-code` — M3
+- `src/lanes.ts` — şerit başına bölüm sırası, başlıklar, "loud" kuralı (bildirim + rozet)
+- `src/ui` — Vue bileşenleri ve Tauri'ye bağlanan runtime (`board-runtime.ts`, `settings-store.ts`)
 - `_ref/ghbar` — GHBar referans kopyası (git'e girmez). Kod kopyalanmaz; dosya yorumlarındaki kararlar okunur, testler spesifikasyon olarak çevrilir.
 
 ## Komutlar

@@ -83,7 +83,7 @@ interface Source {
 }
 ```
 
-- **Bağımlılıklar minimum:** Vue 3, Vite, TypeScript, Vitest. Rust tarafında `tauri-plugin-notification`, `-positioner`, `-store`, `keyring`, `tiny_http`. GitHub GraphQL webview `fetch`'i ile çağrılır (CORS ve rate-limit header'ları açık), `tauri-plugin-http` gerekmedi. Link açma Rust'ta `open_url` (yalnızca `https://github.com/`). UI kütüphanesi ve state kütüphanesi yok; `reactive()` yeterli.
+- **Bağımlılıklar minimum:** Vue 3, Vite, TypeScript, Vitest. Rust tarafında `tauri-plugin-http`, `-notification`, `-positioner`, `-store`, `keyring`, `tiny_http`. GitHub GraphQL webview `fetch`'i ile çağrılır (CORS ve rate-limit header'ları açık); Forge ve Sentry `tauri-plugin-http` ile. Link açma Rust'ta `open_url` (yalnız http/https); hangi host'ların açılabileceğine TS'teki `isOpenable` karar verir (GitHub, Sentry, Forge ve izlenen Forge siteleri). UI kütüphanesi ve state kütüphanesi yok; `reactive()` yeterli.
 - **Depolama:** GHBar gibi düz JSON (`seen.json`, `settings.json`) `tauri-plugin-store` ile. SQLite'a ancak geçmiş sorgulamak gerekirse geçilir.
 - **Gizli bilgiler:** Forge ve Sentry token'ları macOS Keychain'de; diskte düz metin yok.
 
@@ -103,7 +103,12 @@ GHBar'ın beş araması değişmeden taşınır (başkalarının PR/issue'ları,
 | Forge (API v2) | İzlenen sitelerin son deployment'ı ve durumu | `deploy-failed`, `deploy-ok` | Başarısız = critical; başarılı 30 dk görünür kalır |
 | Sentry | Projelerin son 1 saatte ilk kez görülen, çözülmemiş issue'ları | `error-new`, `error-spike` | Spike = attention |
 
-CI bilgisi mevcut GraphQL sorgusuna eklenir, ek istek doğurmaz. GraphQL puan maliyeti M2'de ölçülür; hedef saatte %1'in altında kalmak. Forge uç noktalarının tam adları M2 başında resmi dokümandan doğrulanacak.
+CI bilgisi mevcut GraphQL sorgusuna eklenir, ek istek doğurmaz. İzlenen repolar sorguya değişkenle (`$w0o`/`$w0n`) giren alias'lardır; repo adı sorgu metnine gömülmez. **Ölçüldü (14 Ekim 2026):** 3 izlenen repoyla sorgu maliyeti 1 puan; 5 dk aralıkla saatte 12 puan = %0.24.
+
+Doğrulanan uç noktalar:
+- Forge: `GET https://forge.laravel.com/api/orgs/{org-slug}/servers/{server}/deployments?sort=-created_at&include=site` (sunucu başına bir istek, dakikada 60 istek sınırı). Durumlar: `failed`, `failed-build`, `finished`, `deploying`, `queued`, `pending`, `cancelled`. Forge CORS'a izin vermez → `tauri-plugin-http`, scope yalnız `forge.laravel.com/api/*`.
+- Sentry: `GET https://sentry.io/api/0/organizations/{org}/issues/?query=is:unresolved lastSeen:-1h&statsPeriod=24h&groupStatsPeriod=24h`. Spike = son saatteki olay ≥10 ve 24 saatlik saatlik ortalamanın 5 katından fazla.
+- Forge satırı sitenin kendi adresini açar; Forge web sayfası M4 aksiyonlarına kalır.
 
 ### Agentlar
 
