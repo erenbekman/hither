@@ -29,12 +29,13 @@ Her kaynak `src/sources/<kaynak>/` altında, verisini tek tipe (`Signal`, `src/c
 
 ## Yapı
 
-- `src-tauri/src/lib.rs` — tray, popover, ayarlar penceresi
+- `src-tauri/src/lib.rs` — tray, popover, ayarlar penceresi, `set_badge`, `open_url`, `reveal_panel`
 - `src-tauri/src/gh.rs` — `gh_token` (tam yollar → PATH, 5 sn watchdog)
 - `src-tauri/src/secret.rs` — `secret_get/set/delete` (Keychain)
-- `src/core` — tipler, hatalar, `RefreshGate`
-- `src/sources/{github,forge,sentry,claude-code}` — kaynak adapter'ları
-- `src/ui` — Vue bileşenleri
+- `src/core` — tipler, hatalar, ayarlar, `RefreshGate`, filtreleme, `SeenStore`, bildirim planı, `incoming` yenileme döngüsü
+- `src/sources/github` — sorgu kurucu, GraphQL istemcisi, cevap ayrıştırıcı, `githubSource`
+- `src/sources/{forge,sentry,claude-code}` — sonraki aşamaların kaynak adapter'ları
+- `src/ui` — Vue bileşenleri ve Tauri'ye bağlanan runtime (`incoming-runtime.ts`, `settings-store.ts`)
 - `_ref/ghbar` — GHBar referans kopyası (git'e girmez). Kod kopyalanmaz; dosya yorumlarındaki kararlar okunur, testler spesifikasyon olarak çevrilir.
 
 ## Komutlar

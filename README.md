@@ -4,7 +4,7 @@ What's coming hither, what's gone thither — PRs, deploys and agents in your me
 
 A macOS menu bar app with four lanes: **Incoming** (PRs and issues waiting on you), **Outgoing** (CI, deploys, production errors), **Agents** (Claude Code sessions and their PRs) and **Suggestions**.
 
-Status: early skeleton (M0). See [docs/PLAN.md](docs/PLAN.md).
+Status: M1 — the Incoming lane works; the others are empty. See [docs/PLAN.md](docs/PLAN.md).
 
 ## Development
 

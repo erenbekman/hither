@@ -69,14 +69,21 @@ interface Signal {
   meta?: Record<string, unknown>
 }
 
+interface PollResult {
+  signals: Signal[]
+  notices: string[]     // ölümcül olmayan uyarılar: filtre düştü, arama kırpıldı, kısmi hata
+  account?: string      // hesap değişince seen deposu sıfırlanır
+  retryAt?: string      // rate limit bittiyse bir sonraki deneme zamanı
+}
+
 interface Source {
   id: string
   interval: number      // sn; hook kaynağı için 0 (push)
-  poll(ctx: Ctx): Promise<Signal[]>   // hata fırlatır, yutmaz
+  poll(ctx: Ctx): Promise<PollResult>   // hata fırlatır, yutmaz
 }
 ```
 
-- **Bağımlılıklar minimum:** Vue 3, Vite, TypeScript, Vitest. Rust tarafında `tauri-plugin-http`, `-notification`, `-positioner`, `-store`, `keyring`, `tiny_http`. UI kütüphanesi ve state kütüphanesi yok; `reactive()` yeterli.
+- **Bağımlılıklar minimum:** Vue 3, Vite, TypeScript, Vitest. Rust tarafında `tauri-plugin-notification`, `-positioner`, `-store`, `keyring`, `tiny_http`. GitHub GraphQL webview `fetch`'i ile çağrılır (CORS ve rate-limit header'ları açık), `tauri-plugin-http` gerekmedi. Link açma Rust'ta `open_url` (yalnızca `https://github.com/`). UI kütüphanesi ve state kütüphanesi yok; `reactive()` yeterli.
 - **Depolama:** GHBar gibi düz JSON (`seen.json`, `settings.json`) `tauri-plugin-store` ile. SQLite'a ancak geçmiş sorgulamak gerekirse geçilir.
 - **Gizli bilgiler:** Forge ve Sentry token'ları macOS Keychain'de; diskte düz metin yok.
 
