@@ -98,6 +98,9 @@ describe('suggest', () => {
     expect(card.id).toBe(`agent-waiting:session:s:${minutesAgo(12)}`)
     const [inWarp] = suggest(input([{ ...waiting(12), meta: { terminal: 'Warp' } }]))
     expect(inWarp.actions).toEqual([{ kind: 'focus-terminal', terminal: 'Warp' }])
+    const [codex] = suggest(input([{ ...waiting(12), meta: { agent: 'codex', terminal: 'iTerm', terminalSession: 'w0t0p0:X', cwd: '/code/hither' } }]))
+    expect(codex.title).toBe('Codex has waited 12 minutes in hither')
+    expect(codex.actions).toEqual([{ kind: 'focus-terminal', terminal: 'iTerm', session: 'w0t0p0:X', folder: '/code/hither' }])
   })
 
   it('lists incoming pull requests waiting three days or more, at most five', () => {

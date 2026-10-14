@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { ago, hueFor } from './format'
+import { ago, hueFor, spokenAge } from './format'
 
 const now = new Date('2026-10-14T12:00:00Z')
 const before = (ms: number) => new Date(now.getTime() - ms).toISOString()
@@ -27,3 +27,16 @@ describe('hueFor', () => {
     expect(hueFor('carol')).not.toBe(hueFor('dave'))
   })
 })
+
+describe('spokenAge', () => {
+  it('spells the age out for VoiceOver', () => {
+    expect(spokenAge(before(30_000), now)).toBe('just now')
+    expect(spokenAge(before(60_000), now)).toBe('1 minute ago')
+    expect(spokenAge(before(5 * 60_000), now)).toBe('5 minutes ago')
+    expect(spokenAge(before(3 * 3_600_000), now)).toBe('3 hours ago')
+    expect(spokenAge(before(86_400_000), now)).toBe('1 day ago')
+    expect(spokenAge(before(65 * 86_400_000), now)).toBe('2 months ago')
+    expect(spokenAge(before(800 * 86_400_000), now)).toBe('2 years ago')
+  })
+})
+

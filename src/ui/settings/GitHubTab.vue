@@ -3,6 +3,8 @@ import { computed, ref } from 'vue'
 import { isRepoWatched, sameRepo, setRepoWatched, type QuotaVisibility } from '../../core/settings'
 import Group from '../components/Group.vue'
 import Toggle from '../components/Toggle.vue'
+import Advanced from './Advanced.vue'
+import GitHubAccount from './GitHubAccount.vue'
 import SettingRow from './SettingRow.vue'
 import { lines, toggleIn, useSettings } from './context'
 
@@ -24,6 +26,18 @@ const repos = computed(() => {
   return [...known, ...listed].sort((a, b) => (state.knownRepos[b] ?? 0) - (state.knownRepos[a] ?? 0) || a.localeCompare(b))
 })
 const newRepo = ref('')
+const newAccount = ref('')
+const accountName = (text: string) => {
+  const name = text.trim().replace(/^@/, '').toLowerCase()
+  return /^[a-z\d](?:[a-z\d-]{0,38})$/.test(name) ? name : undefined
+}
+
+function addAccount() {
+  const name = accountName(newAccount.value)
+  if (!name) return
+  if (!state.settings.accounts.includes(name)) void save({ accounts: [...state.settings.accounts, name] })
+  newAccount.value = ''
+}
 
 function addRepo() {
   const repo = newRepo.value.trim()
@@ -35,21 +49,23 @@ function addRepo() {
 </script>
 
 <template>
-  <Group label="Scope">
-    <SettingRow label="Accounts" hint="Comma separated; @me is you">
-      <input class="text-input" type="text" :value="state.settings.accounts.join(', ')" @change="save({ accounts: lines(text($event)) })" />
-    </SettingRow>
-    <SettingRow label="Organizations" hint="Selecting one searches it instead of the accounts" stacked>
-      <label v-for="org in organizations" :key="org" class="check">
-        <input
-          type="checkbox"
-          :checked="state.settings.organizations.includes(org)"
-          @change="save({ organizations: toggleIn(state.settings.organizations, org, checked($event)) })"
-        />
-        {{ org }}
-      </label>
-      <span v-if="organizations.length === 0" class="empty">No organizations</span>
-    </SettingRow>
+  <Group label="Account">
+    <GitHubAccount />
+  </Group>
+
+  <Group label="Organizations" hint="Checked organizations show what is assigned to you there">
+    <label v-for="org in organizations" :key="org" class="check row-check">
+      <input
+        type="checkbox"
+        :checked="state.settings.organizations.includes(org)"
+        @change="save({ organizations: toggleIn(state.settings.organizations, org, checked($event)) })"
+      />
+      {{ org }}
+    </label>
+    <span v-if="organizations.length === 0" class="empty row-check">Organizations you belong to appear here</span>
+  </Group>
+
+  <Group label="Repositories">
     <SettingRow label="Watch only checked repositories" :hint="state.settings.repoListIsAllowList ? 'Only checked repositories are watched' : 'Unchecked repositories are hidden'">
       <Toggle
         label="Watch only checked repositories"
@@ -74,43 +90,55 @@ function addRepo() {
         <button class="button" :disabled="!newRepo.includes('/')">Add</button>
       </form>
     </SettingRow>
-    <SettingRow label="Watch the main branch of" hint="owner/name, one per line; a red build shows under Outgoing" stacked>
-      <textarea class="text-input" rows="2" :value="state.settings.watchedRepos.join('\n')" @change="save({ watchedRepos: lines(text($event)) })" />
-    </SettingRow>
   </Group>
 
-  <Group label="API">
-    <SettingRow label="Show the remaining API quota" hint="At the bottom of the panel; low means under a quarter left">
-      <select :value="state.settings.quotaVisibility" @change="save({ quotaVisibility: text($event) as QuotaVisibility })">
-        <option v-for="choice in QUOTA_CHOICES" :key="choice.value" :value="choice.value">{{ choice.label }}</option>
-      </select>
-    </SettingRow>
-  </Group>
+  <Advanced summary="Watched accounts and branches, bots, drafts, folding, overdue reviews, API quota">
+    <Group>
+      <SettingRow label="Watched accounts" hint="@me is you; your personal repositories stay on this list" stacked>
+        <div class="list">
+          <div v-for="account in state.settings.accounts" :key="account" class="entry">
+            <span class="repo">{{ account }}</span>
+            <button
+              v-if="account !== '@me'"
+              class="icon-button"
+              :title="`Remove ${account}`"
+              :aria-label="`Remove ${account}`"
+              @click="save({ accounts: state.settings.accounts.filter((entry) => entry !== account) })"
+            >
+              −
+            </button>
+          </div>
+        </div>
+        <form class="add" @submit.prevent="addAccount">
+          <input v-model="newAccount" class="text-input" type="text" placeholder="username" aria-label="Account to add" />
+          <button class="button" :disabled="!accountName(newAccount)">Add</button>
+        </form>
+      </SettingRow>
+      <SettingRow label="Watch the main branch of" hint="owner/name, one per line; a red build shows under Outgoing" stacked>
+        <textarea class="text-input" rows="2" :value="state.settings.watchedRepos.join('\n')" @change="save({ watchedRepos: lines(text($event)) })" />
+      </SettingRow>
+    </Group>
 
-  <Group label="Incoming lane">
-    <SettingRow label="Show bot pull requests">
-      <Toggle label="Show bot pull requests" :model-value="state.settings.showBots" @update:model-value="save({ showBots: $event })" />
-    </SettingRow>
-    <SettingRow label="Show drafts">
-      <Toggle label="Show drafts" :model-value="state.settings.showDrafts" @update:model-value="save({ showDrafts: $event })" />
-    </SettingRow>
-    <SettingRow label="Flag review requests older than" hint="Hours since the pull request was opened; 0 never flags">
-      <input
-        type="number"
-        min="0"
-        :value="state.settings.reviewOverdueHours"
-        @change="save({ reviewOverdueHours: Number(text($event)) })"
-      />
-    </SettingRow>
-    <SettingRow label="Fold a repository with more than" hint="0 never folds">
-      <input
-        type="number"
-        min="0"
-        :value="state.settings.repoGroupThreshold"
-        @change="save({ repoGroupThreshold: Number(text($event)) })"
-      />
-    </SettingRow>
-  </Group>
+    <Group>
+      <SettingRow label="Show bot pull requests">
+        <Toggle label="Show bot pull requests" :model-value="state.settings.showBots" @update:model-value="save({ showBots: $event })" />
+      </SettingRow>
+      <SettingRow label="Show drafts">
+        <Toggle label="Show drafts" :model-value="state.settings.showDrafts" @update:model-value="save({ showDrafts: $event })" />
+      </SettingRow>
+      <SettingRow label="Fold a repository with more than" hint="Quiet items only; 0 never folds">
+        <input type="number" min="0" :value="state.settings.repoGroupThreshold" @change="save({ repoGroupThreshold: Number(text($event)) })" />
+      </SettingRow>
+      <SettingRow label="Flag review requests older than" hint="Hours since the pull request was opened; 0 never flags">
+        <input type="number" min="0" :value="state.settings.reviewOverdueHours" @change="save({ reviewOverdueHours: Number(text($event)) })" />
+      </SettingRow>
+      <SettingRow label="Show API calls left" hint="In the panel footer; low means under a quarter left">
+        <select :value="state.settings.quotaVisibility" @change="save({ quotaVisibility: text($event) as QuotaVisibility })">
+          <option v-for="choice in QUOTA_CHOICES" :key="choice.value" :value="choice.value">{{ choice.label }}</option>
+        </select>
+      </SettingRow>
+    </Group>
+  </Advanced>
 </template>
 
 <style scoped>
@@ -118,6 +146,20 @@ function addRepo() {
   display: flex;
   align-items: center;
   gap: 7px;
+  font-size: 12.5px;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.entry {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 22px;
   font-size: 12.5px;
 }
 
@@ -153,5 +195,9 @@ function addRepo() {
 .empty {
   color: var(--fg-3);
   font-size: 12px;
+}
+
+.row-check {
+  padding: 5px 10px;
 }
 </style>

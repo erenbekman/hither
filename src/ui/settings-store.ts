@@ -3,6 +3,7 @@ import { load, type Store } from '@tauri-apps/plugin-store'
 import { normalizeSettings, type Settings } from '../core/settings'
 
 const SETTINGS_CHANGED = 'settings-changed'
+const ACCOUNT_CHANGED = 'github-account-changed'
 export const REPOS_FILE = 'repos.json'
 
 export const openSettingsStore = () => load('settings.json', { defaults: {}, autoSave: false })
@@ -20,3 +21,7 @@ export async function writeSettings(store: Store, values: Partial<Settings>): Pr
 export const announceSettingsChanged = () => emit(SETTINGS_CHANGED)
 
 export const onSettingsChanged = (handler: () => void) => listen(SETTINGS_CHANGED, handler)
+
+export const announceAccountChanged = () => emit(ACCOUNT_CHANGED)
+
+export const onAccountChanged = (handler: () => void) => listen(ACCOUNT_CHANGED, handler)

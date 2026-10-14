@@ -12,7 +12,10 @@ export interface HookEvent {
   reason?: string | null
   source?: string | null
   session_title?: string | null
+  tool_name?: string | null
+  agent?: string | null
   terminal?: string | null
+  terminal_session?: string | null
 }
 
 export type SessionState = 'running' | 'waiting' | 'done' | 'failed'
@@ -25,7 +28,9 @@ export interface Session {
   updatedAt: string
   title?: string
   message?: string
+  agent?: 'codex'
   terminal?: Terminal
+  terminalSession?: string
 }
 
 export type Sessions = Record<string, Session>
@@ -35,8 +40,12 @@ export const FINISHED_TURN_MS = 30 * 60_000
 
 const WAITING = new Set(['permission_prompt', 'idle_prompt', 'agent_needs_input', 'elicitation_dialog', 'elicitation_url_dialog'])
 
+export const agentName = (agent: unknown) => (agent === 'codex' ? 'Codex' : 'Claude')
+
 function transition(session: Session | undefined, event: HookEvent): Pick<Session, 'state'> & { message?: string } | 'end' | undefined {
   switch (event.hook_event_name) {
+    case 'PermissionRequest':
+      return { state: 'waiting', message: `${agentName(event.agent)} needs your permission${event.tool_name ? ` to use ${event.tool_name}` : ''}` }
     case 'SessionStart':
     case 'UserPromptSubmit':
       return { state: 'running' }
@@ -74,6 +83,8 @@ export function applyHookEvent(sessions: Sessions, event: HookEvent, now: Date):
     cwd: event.cwd ?? base.cwd,
     title: event.session_title ?? base.title,
     terminal: terminalFor(event.terminal) ?? base.terminal,
+    terminalSession: event.terminal_session || base.terminalSession,
+    ...(event.agent === 'codex' || base.agent === 'codex' ? { agent: 'codex' as const } : {}),
     updatedAt: at,
     ...(next ? { state: next.state, message: next.message } : {}),
     since: changed || !current ? at : base.since,
@@ -121,6 +132,13 @@ export function sessionSignals(sessions: Sessions, now: Date): Signal[] {
       project: session.cwd.split('/').filter(Boolean).pop() ?? session.cwd,
       title: !session.message ? TITLES[session.state] : session.state === 'failed' ? session.message.replace(/_/g, ' ') : session.message,
       at: session.since,
-      meta: { cwd: session.cwd, sessionTitle: session.title, state: session.state, terminal: session.terminal },
+      meta: {
+        cwd: session.cwd,
+        sessionTitle: session.title,
+        state: session.state,
+        agent: session.agent,
+        terminal: session.terminal,
+        terminalSession: session.terminalSession,
+      },
     }))
 }

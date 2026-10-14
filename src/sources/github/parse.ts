@@ -85,6 +85,7 @@ export function parseResponse(root: unknown, rateLimitResetAt: string, watched: 
     followers: count(viewer.followers),
     stars: starNodes.reduce<number>((sum, node) => sum + (isObject(node) && typeof node.stargazerCount === 'number' ? node.stargazerCount : 0), 0),
     starsAreExact: count(repositories) <= starNodes.length,
+    organizations,
   }
 
   const truncated: SearchKey[] = []

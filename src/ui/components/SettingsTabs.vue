@@ -1,5 +1,5 @@
 <script setup lang="ts">
-export type SettingsTab = 'general' | 'github' | 'forge' | 'sentry' | 'agents' | 'suggestions'
+export type SettingsTab = 'general' | 'github' | 'connections'
 
 defineProps<{ modelValue: SettingsTab }>()
 defineEmits<{ 'update:modelValue': [tab: SettingsTab] }>()
@@ -15,10 +15,7 @@ const tabs: { id: SettingsTab; label: string; path: string }[] = [
     label: 'GitHub',
     path: 'M5 3.5v11M5 6.5a6 6 0 0 0 6 6h1M5 3.5m-1.6 0a1.6 1.6 0 1 0 3.2 0 1.6 1.6 0 1 0-3.2 0M13.6 12.5m-1.6 0a1.6 1.6 0 1 0 3.2 0 1.6 1.6 0 1 0-3.2 0',
   },
-  { id: 'forge', label: 'Forge', path: 'M3 3.5h12v4H3zM3 10.5h12v4H3zM5.5 5.5h.01M5.5 12.5h.01' },
-  { id: 'sentry', label: 'Sentry', path: 'M9 2.5l7 12.5H2L9 2.5zM9 7.5v3.5M9 13h.01' },
-  { id: 'agents', label: 'Agents', path: 'M2.5 3.5h13v11h-13zM5.5 7.5l2 1.5-2 1.5M9.5 10.5h3' },
-  { id: 'suggestions', label: 'Suggestions', path: 'M9 2.5a4.5 4.5 0 0 0-2.5 8.2v1.8h5v-1.8A4.5 4.5 0 0 0 9 2.5zM7 15h4' },
+  { id: 'connections', label: 'Connections', path: 'M7 4.5v-2M11 4.5v-2M5 4.5h8v4a4 4 0 0 1-8 0zM9 12.5v3' },
 ]
 </script>
 

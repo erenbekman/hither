@@ -162,9 +162,72 @@ pub async fn claude_print(folder: Option<String>, prompt: String) -> Result<Stri
     .map_err(|e| e.to_string())?
 }
 
+const ITERM_FOCUS: &str = r#"on run argv
+  set target to item 1 of argv
+  tell application id "com.googlecode.iterm2"
+    repeat with w in windows
+      repeat with t in tabs of w
+        repeat with s in sessions of t
+          if unique id of s is target then
+            select w
+            tell t to select
+            tell s to select
+            activate
+            return
+          end if
+        end repeat
+      end repeat
+    end repeat
+  end tell
+  error "no such session"
+end run"#;
+
+const GHOSTTY_FOCUS: &str = r#"on run argv
+  set target to item 1 of argv
+  tell application id "com.mitchellh.ghostty"
+    repeat with w in windows
+      repeat with t in tabs of w
+        repeat with term in terminals of t
+          if working directory of term is target then
+            focus term
+            activate
+            return
+          end if
+        end repeat
+      end repeat
+    end repeat
+  end tell
+  error "no such terminal"
+end run"#;
+
+fn iterm_session(value: &str) -> Option<String> {
+    let id = value.rsplit(':').next()?;
+    (id.len() == 36 && id.chars().all(|c| c.is_ascii_hexdigit() || c == '-')).then(|| id.to_string())
+}
+
+fn focus_script(terminal: &str, session: Option<&str>, folder: Option<&str>) -> Option<(&'static str, String)> {
+    match terminal {
+        "iTerm" => session.and_then(iterm_session).map(|id| (ITERM_FOCUS, id)),
+        "Ghostty" => folder.filter(|f| Path::new(f).is_absolute()).map(|f| (GHOSTTY_FOCUS, f.trim_end_matches('/').to_string())),
+        _ => None,
+    }
+}
+
 #[tauri::command]
-pub fn focus_terminal(terminal: String) -> Result<(), String> {
-    Command::new("/usr/bin/open").args(["-a", terminal_app(&terminal)?]).status().map(|_| ()).map_err(|e| e.to_string())
+pub async fn focus_terminal(terminal: String, session: Option<String>, folder: Option<String>) -> Result<(), String> {
+    let terminal = terminal_app(&terminal)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        if let Some((script, target)) = focus_script(terminal, session.as_deref(), folder.as_deref()) {
+            let mut command = Command::new("/usr/bin/osascript");
+            command.arg("-e").arg(script).arg(target);
+            if matches!(run(command, None, Duration::from_secs(5)), Ok(output) if output.success) {
+                return Ok(());
+            }
+        }
+        Command::new("/usr/bin/open").args(["-a", terminal]).status().map(|_| ()).map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 fn templates_dir(app: &AppHandle) -> Result<PathBuf, String> {
@@ -203,6 +266,16 @@ mod tests {
     #[test]
     fn quotes_single_quotes_for_the_shell() {
         assert_eq!(quote("/a b/it's"), r"'/a b/it'\''s'");
+    }
+
+    #[test]
+    fn picks_the_tab_script_only_with_a_usable_target() {
+        let id = "9A6B1C2D-0000-4000-8000-ABCDEFABCDEF";
+        assert_eq!(focus_script("iTerm", Some(&format!("w0t1p0:{id}")), None), Some((ITERM_FOCUS, id.to_string())));
+        assert_eq!(focus_script("iTerm", Some("w0t1p0:not-a-uuid"), None), None);
+        assert_eq!(focus_script("Ghostty", None, Some("/code/hither/")), Some((GHOSTTY_FOCUS, "/code/hither".to_string())));
+        assert_eq!(focus_script("Ghostty", None, Some("relative")), None);
+        assert_eq!(focus_script("Terminal", Some(&format!("w0t1p0:{id}")), Some("/code")), None);
     }
 
     #[test]

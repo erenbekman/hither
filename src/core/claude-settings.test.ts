@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import {
+  addCodexHooks,
   addHooks,
   blockedByAllowList,
+  CODEX_HOOK_EVENTS,
+  codexCommand,
+  codexHookStatus,
   HOOK_EVENTS,
   hookStatus,
   hookUrl,
@@ -48,8 +52,8 @@ describe('addHooks', () => {
             type: 'http',
             url,
             timeout: 5,
-            headers: { Authorization: 'Bearer tok', 'X-Hither-Terminal': '$TERM_PROGRAM' },
-            allowedEnvVars: ['TERM_PROGRAM'],
+            headers: { Authorization: 'Bearer tok', 'X-Hither-Terminal': '$TERM_PROGRAM', 'X-Hither-Terminal-Session': '$ITERM_SESSION_ID' },
+            allowedEnvVars: ['TERM_PROGRAM', 'ITERM_SESSION_ID'],
           },
         ],
       },
@@ -131,3 +135,35 @@ describe('serializeClaudeSettings', () => {
     expect(serializeClaudeSettings({ a: 1 })).toBe('{\n  "a": 1\n}\n')
   })
 })
+
+describe('Codex hooks', () => {
+  const codexHooks = {
+    hooks: {
+      PermissionRequest: [{ hooks: [{ type: 'command', command: '/opt/approve', timeout: 7200 }] }],
+    },
+  }
+
+  it('posts the event to Hither with curl, in the background, never failing Codex', () => {
+    const command = codexCommand(url, 'abc123')
+    expect(command).toContain("-H 'Authorization: Bearer abc123'")
+    expect(command).toContain("-H 'X-Hither-Agent: codex'")
+    expect(command).toContain('"X-Hither-Terminal: $TERM_PROGRAM"')
+    expect(command).toContain(`--data-binary @- ${url}`)
+    expect(command.endsWith('|| true')).toBe(true)
+    const merged = addCodexHooks(codexHooks, url, 'abc123') as { hooks: Record<string, unknown[]> }
+    expect(Object.keys(merged.hooks).sort()).toEqual([...CODEX_HOOK_EVENTS].sort())
+    expect(merged.hooks.PermissionRequest).toEqual([
+      codexHooks.hooks.PermissionRequest[0],
+      { hooks: [{ type: 'command', command, timeout: 5, async: true }] },
+    ])
+  })
+
+  it('tells installed, missing and outdated apart and removes only its own commands', () => {
+    expect(codexHookStatus(codexHooks, url, 'abc123')).toBe('missing')
+    const installed = addCodexHooks(codexHooks, url, 'abc123')
+    expect(codexHookStatus(installed, url, 'abc123')).toBe('installed')
+    expect(codexHookStatus(installed, url, 'other')).toBe('outdated')
+    expect(removeHooks(installed, url)).toEqual(codexHooks)
+  })
+})
+

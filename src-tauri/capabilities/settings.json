@@ -1,7 +1,15 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "settings-window",
-  "description": "Settings window sizes itself to the selected tab and is dragged by its toolbar",
-  "windows": ["settings"],
-  "permissions": ["core:window:allow-set-size", "core:window:allow-start-dragging"]
+  "description": "Settings and welcome windows: sizing, dragging by the toolbar, closing",
+  "windows": [
+    "settings",
+    "welcome"
+  ],
+  "permissions": [
+    "core:window:allow-set-size",
+    "core:window:allow-start-dragging",
+    "core:window:allow-close",
+    "core:window:allow-destroy"
+  ]
 }

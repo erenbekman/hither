@@ -4,12 +4,13 @@ import { load as loadStore, type Store } from '@tauri-apps/plugin-store'
 import type { HookStatus } from '../../core/claude-settings'
 import { toAppError, type AppError } from '../../core/errors'
 import { DEFAULT_SETTINGS, normalizeSettings, type Settings } from '../../core/settings'
-import { ghToken, launchAtLogin, openTemplates, secretDelete, secretGet, secretSet, setLaunchAtLogin } from '../../native'
+import { launchAtLogin, openTemplates, secretDelete, secretGet, secretSet, setLaunchAtLogin } from '../../native'
 import { FORGE_TOKEN_KEY, listForgeOrganizations, listForgeServers } from '../../sources/forge'
 import { fetchOrganizations } from '../../sources/github'
 import { SENTRY_TOKEN_KEY } from '../../sources/sentry'
-import { installHooks, readHookStatus, uninstallHooks } from '../hooks'
-import { announceSettingsChanged, onSettingsChanged, openSettingsStore, readSettings, REPOS_FILE, writeSettings } from '../settings-store'
+import { githubToken } from '../github-auth'
+import { changeCodexHooks, installHooks, readCodexHookStatus, readHookStatus, uninstallHooks } from '../hooks'
+import { announceSettingsChanged, onAccountChanged, onSettingsChanged, openSettingsStore, readSettings, REPOS_FILE, writeSettings } from '../settings-store'
 import { startUpdates } from '../update-runtime'
 
 export interface SettingsState {
@@ -20,12 +21,15 @@ export interface SettingsState {
   forgeServers: { id: string; name: string }[]
   tokens: Record<string, boolean>
   hooks?: HookStatus
+  codexHooks?: HookStatus | 'unavailable'
   hooksBlocked: boolean
   backup?: string
   launchAtLogin?: boolean
   loaded: boolean
   errors: AppError[]
 }
+
+const SIGN_IN_ERRORS: AppError['kind'][] = ['gh-not-found', 'gh-not-authenticated', 'github-unauthorized']
 
 const asError = (error: unknown): AppError => (typeof error === 'string' ? { kind: 'unknown', message: error } : toAppError(error))
 
@@ -105,6 +109,19 @@ export function createSettingsContext() {
     })
   }
 
+  async function refreshCodexHooks() {
+    await attempt(async () => {
+      state.codexHooks = await readCodexHookStatus()
+    })
+  }
+
+  async function updateCodexHooks(install: boolean) {
+    await attempt(async () => {
+      state.backup = (await changeCodexHooks(install)) ?? undefined
+    })
+    await refreshCodexHooks()
+  }
+
   async function changeHooks(install: boolean) {
     await attempt(async () => {
       state.backup = (await (install ? installHooks() : uninstallHooks())) ?? undefined
@@ -120,7 +137,14 @@ export function createSettingsContext() {
     })
   }
 
-  async function load() {
+  async function loadOrganizations() {
+    state.errors = state.errors.filter((error) => !SIGN_IN_ERRORS.includes(error.kind))
+    await attempt(async () => {
+      state.organizations = await fetchOrganizations(await githubToken())
+    })
+  }
+
+  async function load(options = { organizations: true }) {
     await attempt(async () => {
       store = await openSettingsStore()
       state.settings = await readSettings(store)
@@ -132,9 +156,10 @@ export function createSettingsContext() {
     await attempt(async () => {
       for (const key of [FORGE_TOKEN_KEY, SENTRY_TOKEN_KEY]) state.tokens[key] = (await secretGet(key)) !== null
     })
-    await attempt(async () => {
-      state.organizations = await fetchOrganizations(await ghToken())
-    })
+    if (options.organizations) {
+      await loadOrganizations()
+      await onAccountChanged(() => void loadOrganizations())
+    }
     await attempt(async () => {
       state.launchAtLogin = await launchAtLogin()
     })
@@ -143,6 +168,7 @@ export function createSettingsContext() {
       state.knownRepos = Object.fromEntries(Object.entries(counts ?? {}).filter((entry): entry is [string, number] => typeof entry[1] === 'number'))
     })
     await refreshHookStatus()
+    await refreshCodexHooks()
     await loadForge()
   }
 
@@ -155,6 +181,7 @@ export function createSettingsContext() {
     forgetToken,
     chooseForgeOrg,
     changeHooks,
+    updateCodexHooks,
     changeLaunchAtLogin,
     openTemplates: () => attempt(openTemplates),
     dismissError: (index: number) => state.errors.splice(index, 1),

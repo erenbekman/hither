@@ -32,21 +32,22 @@ Her kaynak `src/sources/<kaynak>/` altında, verisini tek tipe (`Signal`, `src/c
 - `src-tauri/src/lib.rs` — tray (Mark All as Seen, Settings, Quit), popover, ayarlar penceresi, `set_tray` (sayı + normal/alert/error ikon), `open_url`, `copy_text`, `reveal_panel`
 - `src-tauri/src/gh.rs` — `gh_token` (tam yollar → PATH, 5 sn watchdog)
 - `src-tauri/src/secret.rs` — `secret_get/set/delete` (Keychain)
-- `src-tauri/src/hooks.rs` — Claude Code hook dinleyicisi (`127.0.0.1:47811`), `claude_settings_read/write` (yedekli, atomik, izinleri genişletmez)
-- `src-tauri/src/launch.rs` — seçili terminalde (iTerm, Terminal, Ghostty, Warp) `claude` başlatma, yalnız okuma araçlı `claude -p`, `git_repo`, şablon dosyaları
+- `src-tauri/src/hooks.rs` — Claude Code ve Codex hook dinleyicisi (`127.0.0.1:47811`; ajan ve iTerm oturumu header'dan), `agent_config_read/write` (`~/.claude/settings.json`, `~/.codex/hooks.json`; yedekli, atomik, izinleri genişletmez)
+- `src-tauri/src/launch.rs` — seçili terminalde (iTerm, Terminal, Ghostty, Warp) `claude` başlatma, `gh pr checkout`, sekmeye odak (iTerm oturum kimliği, Ghostty klasör; AppleScript, `Entitlements.plist` + `Info.plist`), yalnız okuma araçlı `claude -p`, `git_repo`, şablon dosyaları
 - `src-tauri/src/process.rs` — zaman aşımlı süreç çalıştırıcı ve ikili bulucu (gh, claude)
 - `src/core` — tipler, hatalar, ayarlar, `RefreshGate`, filtreleme, `SeenStore`, bildirim planı, `board` (çok kaynaklı yenileme döngüsü), `recovery` (CI düzeldi), `http`, `openable`
 - `src/sources/github` — sorgu kurucu, GraphQL istemcisi (CI + izlenen branch'ler, profil ve kota dahil), cevap ayrıştırıcı, `githubSource`; `account.ts` kota görünürlüğü ve repo sayaçları (`repos.json`); `activity.ts` GitHub Notifications'tan "New Activity" (yalnız okuma, `If-Modified-Since`)
 - `src/sources/forge`, `src/sources/sentry` — Outgoing adapter'ları; token'lar Keychain'de (`forge-token`, `sentry-token`)
-- `src/sources/claude-code` — oturumlardan Agents sinyalleri; durum makinesi `core/sessions.ts`, settings.json birleştirme `core/claude-settings.ts`
+- `src/sources/claude-code` — Claude Code ve Codex oturumlarından Agents sinyalleri; durum makinesi `core/sessions.ts`, hook birleştirme (Claude `http`, Codex `curl` komutu) `core/claude-settings.ts`
+- `src/sources/github/device-flow.ts`, `src/ui/github-auth.ts` — gh olmadan GitHub girişi (OAuth device flow, token Keychain'de `github-token`; yoksa `gh auth token`); `src/ui/Welcome.vue` ilk açılış penceresi
 - `src/lanes.ts` — şerit başına bölüm sırası, başlıklar, "loud" kuralı (bildirim + rozet)
 - `src/core/suggestions.ts` — öneri kuralları; `core/templates.ts` — kimlik-only prompt şablonları; `core/repo.ts` — git remote → owner/name
-- `src/ui` — Vue bileşenleri ve Tauri'ye bağlanan runtime (`board-runtime.ts`, `suggestions-runtime.ts`, `settings-store.ts`)
+- `src/ui` — Vue bileşenleri ve Tauri'ye bağlanan runtime (`board-runtime.ts`, `suggestions-runtime.ts`, `settings-store.ts`). Panel GHBar düzeninde (`LaneTabs`, `SignalRow`, `lanes.ts` → `chipFor`, `core/filtering.ts` → `flattenLane`); Settings üç sekme (General, GitHub, Connections) ve her birinde `Advanced`
 - `_ref/ghbar` — GHBar referans kopyası (git'e girmez). Kod kopyalanmaz; dosya yorumlarındaki kararlar okunur, testler spesifikasyon olarak çevrilir.
 
 ## Dağıtım
 
-- `scripts/release.sh` — imza, notarization, updater imzası, `latest.json`, Homebrew cask; `release/<version>/` altına yazar. Yayınlamaz (tag, `gh release`, tap push kullanıcıya ait).
+- `scripts/release.sh` — universal derleme (rustup'ın `cargo`'su, `--target universal-apple-darwin`), imza, notarization, updater imzası, `latest.json` (arm64 ve x86_64 aynı paket), Homebrew cask; `release/<version>/` altına yazar. Yayınlamaz (tag, `gh release`, tap push kullanıcıya ait).
 - Sürüm tek yerde: `package.json` (`tauri.conf.json` oradan okur; `Cargo.toml` sürümünü de eşit tut).
 - `site/` — tanıtım sayfası; `.github/workflows/pages.yml` yayınlar.
 

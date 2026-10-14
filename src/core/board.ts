@@ -32,7 +32,11 @@ function isSignal(value: unknown): value is Signal {
 }
 
 const isProfile = (value: unknown): value is Profile =>
-  isObject(value) && typeof value.followers === 'number' && typeof value.stars === 'number' && typeof value.starsAreExact === 'boolean'
+  isObject(value) &&
+  typeof value.followers === 'number' &&
+  typeof value.stars === 'number' &&
+  typeof value.starsAreExact === 'boolean' &&
+  Array.isArray(value.organizations)
 
 export function parseSnapshot(raw: unknown): BoardSnapshot | undefined {
   if (!isObject(raw) || typeof raw.savedAt !== 'string' || !isObject(raw.sources)) return undefined
@@ -206,7 +210,10 @@ export function createBoard(state: BoardState, deps: BoardDeps) {
       groupThreshold: settings.repoGroupThreshold,
     }
     return Object.fromEntries(
-      LANES.map((lane) => [lane, buildSections(all.filter((s) => s.lane === lane), { ...options, order: deps.order[lane] })]),
+      LANES.map((lane) => [
+        lane,
+        settings.lanes.includes(lane) ? buildSections(all.filter((s) => s.lane === lane), { ...options, order: deps.order[lane] }) : [],
+      ]),
     ) as Record<Lane, Section[]>
   }
 

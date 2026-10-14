@@ -25,8 +25,13 @@ struct HookEvent {
     reason: Option<String>,
     source: Option<String>,
     session_title: Option<String>,
+    tool_name: Option<String>,
+    #[serde(skip_deserializing)]
+    agent: Option<String>,
     #[serde(skip_deserializing)]
     terminal: Option<String>,
+    #[serde(skip_deserializing)]
+    terminal_session: Option<String>,
 }
 
 #[derive(Default)]
@@ -35,9 +40,18 @@ pub struct Listener {
     running: Mutex<bool>,
 }
 
-fn terminal_name(value: &str) -> Option<String> {
+fn plain(value: &str, extra: &str) -> Option<String> {
     let value = value.trim();
-    (!value.is_empty() && value.len() <= 64 && value.chars().all(|c| c.is_ascii_alphanumeric() || "._-".contains(c))).then(|| value.to_string())
+    (!value.is_empty() && value.len() <= 64 && value.chars().all(|c| c.is_ascii_alphanumeric() || "._-".contains(c) || extra.contains(c)))
+        .then(|| value.to_string())
+}
+
+fn terminal_name(value: &str) -> Option<String> {
+    plain(value, "")
+}
+
+fn header(request: &tiny_http::Request, name: &'static str) -> Option<String> {
+    request.headers().iter().find(|h| h.field.equiv(name)).map(|h| h.value.as_str().to_string())
 }
 
 fn serve(server: Server, token: Arc<Mutex<String>>, app: AppHandle) {
@@ -56,11 +70,9 @@ fn serve(server: Server, token: Arc<Mutex<String>>, app: AppHandle) {
             let _ = request.as_reader().take(MAX_BODY).read_to_end(&mut body);
             match serde_json::from_slice::<HookEvent>(&body) {
                 Ok(mut event) => {
-                    event.terminal = request
-                        .headers()
-                        .iter()
-                        .find(|h| h.field.equiv("X-Hither-Terminal"))
-                        .and_then(|h| terminal_name(h.value.as_str()));
+                    event.terminal = header(&request, "X-Hither-Terminal").and_then(|v| terminal_name(&v));
+                    event.terminal_session = header(&request, "X-Hither-Terminal-Session").and_then(|v| plain(&v, ":"));
+                    event.agent = header(&request, "X-Hither-Agent").filter(|v| v == "codex");
                     let _ = app.emit("agent-event", event);
                     200
                 }
@@ -84,15 +96,23 @@ pub fn start_hook_listener(app: AppHandle, listener: State<Listener>, token: Str
     Ok(PORT)
 }
 
-fn settings_path() -> Result<PathBuf, String> {
+fn config_path(agent: &str) -> Result<PathBuf, String> {
     let home = std::env::var("HOME").map_err(|_| "HOME is not set".to_string())?;
-    Ok(Path::new(&home).join(".claude/settings.json"))
+    match agent {
+        "claude" => Ok(Path::new(&home).join(".claude/settings.json")),
+        "codex" => {
+            let dir = Path::new(&home).join(".codex");
+            dir.is_dir().then(|| dir.join("hooks.json")).ok_or_else(|| "Codex is not installed".to_string())
+        }
+        _ => Err(format!("unknown agent {agent}")),
+    }
 }
 
 fn write_with_backup(path: &Path, content: &str, stamp: u64) -> std::io::Result<Option<PathBuf>> {
+    let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
     let mode = fs::metadata(path).map(|m| m.permissions().mode() & 0o600).unwrap_or(0o600);
     let backup = if path.exists() {
-        let backup = path.with_file_name(format!("settings.json.hither-backup-{stamp}"));
+        let backup = path.with_file_name(format!("{name}.hither-backup-{stamp}"));
         fs::copy(path, &backup)?;
         Some(backup)
     } else {
@@ -101,7 +121,7 @@ fn write_with_backup(path: &Path, content: &str, stamp: u64) -> std::io::Result<
         }
         None
     };
-    let temp = path.with_file_name("settings.json.hither-tmp");
+    let temp = path.with_file_name(format!("{name}.hither-tmp"));
     let _ = fs::remove_file(&temp);
     let mut file = fs::OpenOptions::new().write(true).create_new(true).mode(0o600).open(&temp)?;
     file.write_all(content.as_bytes())?;
@@ -112,8 +132,8 @@ fn write_with_backup(path: &Path, content: &str, stamp: u64) -> std::io::Result<
 }
 
 #[tauri::command]
-pub fn claude_settings_read() -> Result<Option<String>, String> {
-    match fs::read_to_string(settings_path()?) {
+pub fn agent_config_read(agent: String) -> Result<Option<String>, String> {
+    match fs::read_to_string(config_path(&agent)?) {
         Ok(text) => Ok(Some(text)),
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
         Err(e) => Err(e.to_string()),
@@ -121,9 +141,9 @@ pub fn claude_settings_read() -> Result<Option<String>, String> {
 }
 
 #[tauri::command]
-pub fn claude_settings_write(content: String) -> Result<Option<String>, String> {
+pub fn agent_config_write(agent: String, content: String) -> Result<Option<String>, String> {
     let stamp = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
-    write_with_backup(&settings_path()?, &content, stamp)
+    write_with_backup(&config_path(&agent)?, &content, stamp)
         .map(|backup| backup.map(|p| p.display().to_string()))
         .map_err(|e| e.to_string())
 }
@@ -136,6 +156,19 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("hither-test-{name}-{}", std::process::id()));
         let _ = fs::remove_dir_all(&dir);
         dir.join(".claude/settings.json")
+    }
+
+    #[test]
+    fn keeps_iterm_session_ids_and_names_backups_after_the_file() {
+        assert_eq!(plain("w0t1p0:9A6B1C2D-0000-4000-8000-ABCDEFABCDEF", ":").as_deref(), Some("w0t1p0:9A6B1C2D-0000-4000-8000-ABCDEFABCDEF"));
+        assert_eq!(plain("w0t1p0:x; rm", ":"), None);
+        let dir = std::env::temp_dir().join(format!("hither-test-codex-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("hooks.json");
+        fs::write(&path, "{}").unwrap();
+        let backup = write_with_backup(&path, "{\"hooks\":{}}", 7).unwrap().unwrap();
+        assert!(backup.ends_with("hooks.json.hither-backup-7"));
     }
 
     #[test]

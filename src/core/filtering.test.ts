@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildSections, filterSections, type FilterOptions } from './filtering'
+import { buildSections, filterSections, flattenLane, type FilterOptions } from './filtering'
 import type { Signal } from './types'
 
 const ORDER = ['changes-requested', 'review-requested', 'pr', 'issue', 'my-pr'] as const
@@ -174,6 +174,24 @@ describe('filterSections', () => {
   it('unfolds repository groups so every match is its own row', () => {
     const [prs] = filterSections(sections(), 'acme/api')
     expect(prs.rows.map((row) => row.type)).toEqual(['item', 'item', 'item', 'item'])
+  })
+})
+
+describe('flattenLane', () => {
+  const loud = (n: number, repo: string, minutesAgo: number) => ({ ...signal(n, 'review-requested', { repo, minutesAgo }), severity: 'attention' as const })
+
+  it('keeps the section order, newest first inside, with no headers', () => {
+    const sections = buildSections([signal(1, 'pr', { minutesAgo: 5 }), loud(2, 'alice/webapp', 50), signal(3, 'pr', { minutesAgo: 1 })], options({ groupThreshold: 0 }))
+    expect(flattenLane(sections, 0).map((row) => (row.type === 'item' ? row.signal.meta?.number : row.project))).toEqual([2, 3, 1])
+  })
+
+  it('folds only quiet items of a busy repository, at the place of its first item', () => {
+    const sections = buildSections(
+      [loud(1, 'acme/api', 1), loud(2, 'acme/api', 2), signal(3, 'pr', { repo: 'acme/api', minutesAgo: 3 }), signal(4, 'pr', { repo: 'acme/web', minutesAgo: 4 }), signal(5, 'pr', { repo: 'acme/api', minutesAgo: 5 }), signal(6, 'issue', { repo: 'acme/api', minutesAgo: 6 }), signal(7, 'pr', { repo: 'acme/api', minutesAgo: 7 })],
+      options({ groupThreshold: 0 }),
+    )
+    const rows = flattenLane(sections, 3)
+    expect(rows.map((row) => (row.type === 'item' ? row.signal.meta?.number : `${row.project}:${row.signals.length}`))).toEqual([1, 2, 'acme/api:4', 4])
   })
 })
 

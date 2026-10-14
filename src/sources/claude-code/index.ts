@@ -1,6 +1,6 @@
 import type { AppError } from '../../core/errors'
 import type { Sessions } from '../../core/sessions'
-import { sessionSignals } from '../../core/sessions'
+import { agentName, sessionSignals } from '../../core/sessions'
 import type { Source } from '../../core/types'
 
 export const AGENT_SOURCE_ID = 'claude-code'
@@ -23,8 +23,9 @@ export function claudeCodeSource(deps: {
   }
 }
 
-export function describeSession(state: unknown): string {
-  if (state === 'waiting') return 'Claude is waiting'
-  if (state === 'failed') return 'Claude stopped'
-  return 'Claude'
+export function describeSession(state: unknown, agent?: unknown): string {
+  const name = agentName(agent)
+  if (state === 'waiting') return `${name} is waiting`
+  if (state === 'failed') return `${name} stopped`
+  return name
 }

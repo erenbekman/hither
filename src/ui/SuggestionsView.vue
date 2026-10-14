@@ -39,7 +39,7 @@ function label(action: SuggestionAction): string {
           <span class="status" :class="card.severity" />
           <span class="title">{{ card.title }}</span>
           <span class="age num">{{ ago(card.at, now) }}</span>
-          <button class="icon-button close" title="Hide" @click="dismiss(card)">×</button>
+          <button class="icon-button close" title="Hide" :aria-label="`Hide ${card.title}`" @click="dismiss(card)">×</button>
         </header>
         <p v-if="card.detail" class="detail">{{ card.detail }}</p>
 
@@ -82,9 +82,6 @@ function label(action: SuggestionAction): string {
         <span>No suggestions right now.</span>
       </div>
     </div>
-    <footer class="footer num">
-      {{ state.clicksThisWeek }} suggestion{{ state.clicksThisWeek === 1 ? '' : 's' }} acted on in the last 7 days
-    </footer>
   </div>
 </template>
 
@@ -141,10 +138,6 @@ header {
 
 .age,
 .note,
-.footer {
-  color: var(--fg-3);
-  font-size: 11px;
-}
 
 .close {
   width: 18px;
@@ -211,8 +204,4 @@ header {
   font-size: 12px;
 }
 
-.footer {
-  padding: 6px 12px;
-  border-top: 0.5px solid var(--separator);
-}
 </style>

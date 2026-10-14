@@ -1,16 +1,13 @@
 <script setup lang="ts">
-import { nextTick, onMounted, ref, watch } from 'vue'
+import { nextTick, onMounted, onUnmounted, ref } from 'vue'
 import { LogicalSize } from '@tauri-apps/api/dpi'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import Banner from './components/Banner.vue'
 import SettingsTabs, { type SettingsTab } from './components/SettingsTabs.vue'
-import AgentsTab from './settings/AgentsTab.vue'
+import ConnectionsTab from './settings/ConnectionsTab.vue'
 import { createSettingsContext, provideSettings } from './settings/context'
-import ForgeTab from './settings/ForgeTab.vue'
 import GeneralTab from './settings/GeneralTab.vue'
 import GitHubTab from './settings/GitHubTab.vue'
-import SentryTab from './settings/SentryTab.vue'
-import SuggestionsTab from './settings/SuggestionsTab.vue'
 
 const WIDTH = 520
 const MIN_HEIGHT = 360
@@ -23,7 +20,7 @@ const { state, dismissError } = context
 const tab = ref<SettingsTab>('general')
 const page = ref<HTMLElement>()
 
-const TABS = { general: GeneralTab, github: GitHubTab, forge: ForgeTab, sentry: SentryTab, agents: AgentsTab, suggestions: SuggestionsTab }
+const TABS = { general: GeneralTab, github: GitHubTab, connections: ConnectionsTab }
 
 async function fitWindow() {
   await nextTick()
@@ -32,12 +29,14 @@ async function fitWindow() {
   await context.attempt(() => getCurrentWindow().setSize(new LogicalSize(WIDTH, height)))
 }
 
-watch([tab, () => state.settings.forgeEnabled, () => state.settings.sentryEnabled, () => state.forgeServers.length, () => state.errors.length], fitWindow)
+const resize = new ResizeObserver(() => void fitWindow())
 
 onMounted(async () => {
+  if (page.value) resize.observe(page.value)
   await context.load()
   await fitWindow()
 })
+onUnmounted(() => resize.disconnect())
 </script>
 
 <template>
@@ -58,7 +57,7 @@ onMounted(async () => {
 
 <style scoped>
 .settings {
-  min-height: 100vh;
+  display: flow-root;
 }
 
 .content {

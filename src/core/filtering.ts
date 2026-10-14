@@ -76,3 +76,20 @@ export function filterSections(sections: Section[], query: string): Section[] {
     return signals.length > 0 ? [{ ...section, signals, rows: signals.map((signal): Row => ({ type: 'item', signal })) }] : []
   })
 }
+
+export function flattenLane(sections: Section[], threshold: number): Row[] {
+  const signals = sections.flatMap((section) => section.signals)
+  const counts = new Map<string, number>()
+  for (const signal of signals) if (signal.severity === 'info') counts.set(signal.project, (counts.get(signal.project) ?? 0) + 1)
+  const folded = (signal: Signal) => threshold > 0 && signal.severity === 'info' && (counts.get(signal.project) ?? 0) > threshold
+  const result: Row[] = []
+  const emitted = new Set<string>()
+  for (const signal of signals) {
+    if (!folded(signal)) result.push({ type: 'item', signal })
+    else if (!emitted.has(signal.project)) {
+      emitted.add(signal.project)
+      result.push({ type: 'group', project: signal.project, signals: signals.filter((s) => s.project === signal.project && folded(s)) })
+    }
+  }
+  return result
+}

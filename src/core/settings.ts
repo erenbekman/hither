@@ -5,6 +5,8 @@ export type Terminal = (typeof TERMINALS)[number]
 const TERM_PROGRAMS: Record<string, Terminal> = { 'iTerm.app': 'iTerm', Apple_Terminal: 'Terminal', ghostty: 'Ghostty', WarpTerminal: 'Warp' }
 export const terminalFor = (termProgram: string | null | undefined): Terminal | undefined =>
   termProgram && Object.hasOwn(TERM_PROGRAMS, termProgram) ? TERM_PROGRAMS[termProgram] : undefined
+export const LANE_IDS = ['incoming', 'outgoing', 'agents', 'suggestions'] as const
+export type LaneId = (typeof LANE_IDS)[number]
 export const QUOTA_VISIBILITY = ['never', 'low', 'always'] as const
 export type QuotaVisibility = (typeof QUOTA_VISIBILITY)[number]
 
@@ -36,6 +38,8 @@ export interface Settings {
   quietEnd: string
   quotaVisibility: QuotaVisibility
   reviewOverdueHours: number
+  onboarded: boolean
+  lanes: LaneId[]
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -66,6 +70,8 @@ export const DEFAULT_SETTINGS: Settings = {
   quietEnd: '08:00',
   quotaVisibility: 'low',
   reviewOverdueHours: 24,
+  onboarded: false,
+  lanes: [...LANE_IDS],
 }
 
 const isStringRecord = (value: unknown): value is Record<string, string> =>
@@ -77,6 +83,11 @@ const isStringList = (value: unknown): value is string[] =>
 const LANES: Lane[] = ['incoming', 'outgoing', 'agents']
 const isLaneList = (value: unknown) => Array.isArray(value) && value.every((entry) => LANES.includes(entry))
 const isClockTime = (value: unknown) => typeof value === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(value)
+
+function chosenLanes(value: unknown): LaneId[] {
+  const chosen = Array.isArray(value) ? LANE_IDS.filter((lane) => value.includes(lane)) : []
+  return chosen.length > 0 ? chosen : [...LANE_IDS]
+}
 
 export function normalizeSettings(raw: Record<string, unknown>): Settings {
   const pick = <K extends keyof Settings>(key: K, valid: (value: unknown) => boolean): Settings[K] =>
@@ -114,6 +125,8 @@ export function normalizeSettings(raw: Record<string, unknown>): Settings {
     quietEnd: pick('quietEnd', isClockTime),
     quotaVisibility: pick('quotaVisibility', (value) => QUOTA_VISIBILITY.includes(value as QuotaVisibility)),
     reviewOverdueHours: pick('reviewOverdueHours', isCount),
+    onboarded: pick('onboarded', isBool),
+    lanes: chosenLanes(raw.lanes),
   }
 }
 
@@ -139,4 +152,9 @@ export function muteRepo(settings: Settings, repo: string): Pick<Settings, 'repo
     repoList: setRepoWatched(settings, repo, false),
     watchedRepos: settings.watchedRepos.filter((entry) => entry.toLowerCase() !== repo.toLowerCase()),
   }
+}
+
+export function scopeLabel(organizations: string[]): string {
+  if (organizations.length === 0) return 'Your repositories'
+  return organizations.length === 1 ? `Assigned to you in ${organizations[0]}` : `Assigned to you in ${organizations.length} organizations`
 }

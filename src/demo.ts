@@ -176,7 +176,7 @@ const source = (id: string, signals: (now: Date) => Signal[], extra: Partial<Pol
 export function demoSources(): Source[] {
   const github = source('github', githubSignals, {
     account: 'you',
-    profile: { followers: 128, stars: 1240, starsAreExact: true },
+    profile: { followers: 128, stars: 1240, starsAreExact: true, organizations: ['acme', 'widgets'] },
     quota: { limit: 5000, remaining: 4870, resetAt: new Date(Date.now() + 40 * 60_000).toISOString() },
   })
   return [github, source('forge', forge), source('sentry', sentry), source('claude-code', agents)]

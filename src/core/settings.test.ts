@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { DEFAULT_SETTINGS, isRepoWatched, muteRepo, normalizeSettings, setRepoWatched } from './settings'
+import { DEFAULT_SETTINGS, isRepoWatched, muteRepo, normalizeSettings, scopeLabel, setRepoWatched } from './settings'
 
 describe('normalizeSettings', () => {
   it('fills a fresh install with defaults', () => {
@@ -40,6 +40,13 @@ describe('normalizeSettings', () => {
     expect(normalizeSettings({}).reviewOverdueHours).toBe(24)
     expect(normalizeSettings({ reviewOverdueHours: 0 }).reviewOverdueHours).toBe(0)
     expect(normalizeSettings({ reviewOverdueHours: 1.5 }).reviewOverdueHours).toBe(24)
+  })
+
+  it('keeps the chosen lanes and never leaves all of them off', () => {
+    expect(normalizeSettings({}).lanes).toEqual(['incoming', 'outgoing', 'agents', 'suggestions'])
+    expect(normalizeSettings({ lanes: ['agents', 'incoming'] }).lanes).toEqual(['incoming', 'agents'])
+    expect(normalizeSettings({ lanes: [] }).lanes).toEqual(['incoming', 'outgoing', 'agents', 'suggestions'])
+    expect(normalizeSettings({ lanes: ['nope'] }).lanes).toEqual(['incoming', 'outgoing', 'agents', 'suggestions'])
   })
 
   it('keeps only a supported terminal', () => {
@@ -83,6 +90,14 @@ describe('repository checklist', () => {
     const only = { ...hide, repoListIsAllowList: true }
     expect(setRepoWatched(only, 'acme/api', true)).toEqual(['acme/old', 'acme/api'])
     expect(setRepoWatched(only, 'acme/old', false)).toEqual([])
+  })
+})
+
+describe('scopeLabel', () => {
+  it('names the scope the way the searches use it', () => {
+    expect(scopeLabel([])).toBe('Your repositories')
+    expect(scopeLabel(['acme'])).toBe('Assigned to you in acme')
+    expect(scopeLabel(['acme', 'widgets'])).toBe('Assigned to you in 2 organizations')
   })
 })
 

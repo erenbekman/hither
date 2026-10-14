@@ -1,14 +1,13 @@
 <script setup lang="ts">
 import { computed, reactive } from 'vue'
 import type { BoardState } from '../core/board'
-import { filterSections, type Section } from '../core/filtering'
-import { ago } from '../core/format'
+import { filterSections, flattenLane } from '../core/filtering'
+import { ago, spokenAge } from '../core/format'
 import type { Lane, Signal } from '../core/types'
-import { isOverdue, SECTION_TITLES, subtitle } from '../lanes'
+import { chipFor, isOverdue, subtitle, type ChipTone } from '../lanes'
 import { openSettings } from '../native'
 import Banner from './components/Banner.vue'
 import Mark from './components/Mark.vue'
-import SectionHeader from './components/SectionHeader.vue'
 import SignalRow from './components/SignalRow.vue'
 
 const props = defineProps<{
@@ -16,9 +15,9 @@ const props = defineProps<{
   state: BoardState
   now: Date
   open: (id: string, url: string | undefined) => void
-  markSeen: (ids: string[]) => void
   showMenu: (signals: Signal[]) => void
   overdueHours: number
+  groupThreshold: number
   empty: string
   emptyHint?: string
   query?: string
@@ -26,7 +25,10 @@ const props = defineProps<{
 
 const expanded = reactive<Record<string, boolean>>({})
 
-const sections = computed(() => filterSections(props.state.lanes[props.lane], props.query ?? ''))
+const rows = computed(() => {
+  const query = props.query?.trim() ?? ''
+  return flattenLane(filterSections(props.state.lanes[props.lane], query), query ? 0 : props.groupThreshold)
+})
 const problems = computed(() => {
   const shown = new Set<string>()
   return props.state.problems.filter((problem) => {
@@ -38,18 +40,25 @@ const problems = computed(() => {
 })
 const notices = computed(() => props.state.notices.filter((notice) => notice.lanes.includes(props.lane)))
 
-const unseenIn = (signals: Signal[]) => signals.filter((signal) => props.state.unseen[signal.id])
-const groupKey = (section: Section, project: string) => `${section.kind}:${project}`
+const isUnseen = (signal: Signal) => !!props.state.unseen[signal.id]
 const avatarOf = (signal: Signal) =>
-  signal.source === 'github' && signal.actor
+  signal.source === 'github' && signal.actor && !signal.kind.startsWith('ci-')
     ? { login: signal.actor, url: typeof signal.meta?.avatar === 'string' ? signal.meta.avatar : undefined }
     : undefined
+
+function symbolOf(signal: Signal): { glyph: string; tone: ChipTone | 'claude' } {
+  if (signal.source === 'claude-code') return signal.meta?.agent === 'codex' ? { glyph: '◎', tone: 'gray' } : { glyph: '✳', tone: 'claude' }
+  if (signal.source === 'forge') return { glyph: '↑', tone: chipFor(signal)?.tone ?? 'gray' }
+  if (signal.source === 'sentry') return { glyph: '!', tone: 'orange' }
+  if (signal.kind === 'ci-fixed') return { glyph: '✓', tone: 'green' }
+  if (signal.kind.startsWith('ci-')) return { glyph: '✕', tone: signal.kind === 'ci-main-failed' ? 'red' : 'orange' }
+  return { glyph: '•', tone: 'gray' }
+}
+
 const staleAge = (at: string) => {
   const age = ago(at, props.now)
   return age === 'now' ? 'a moment ago' : `${age} ago`
 }
-const strongest = (signals: Signal[]): Signal['severity'] =>
-  signals.some((s) => s.severity === 'critical') ? 'critical' : signals.some((s) => s.severity === 'attention') ? 'attention' : 'info'
 </script>
 
 <template>
@@ -64,63 +73,58 @@ const strongest = (signals: Signal[]): Signal['severity'] =>
     <Banner v-for="notice in notices" :key="notice.source + notice.text" tone="warning" :text="notice.text" />
 
     <div class="list">
-      <section v-for="section in sections" :key="section.kind">
-        <SectionHeader
-          :title="SECTION_TITLES[section.kind] ?? section.kind"
-          :count="section.signals.length"
-          :unseen="unseenIn(section.signals).length"
-          @mark-seen="markSeen(unseenIn(section.signals).map((s) => s.id))"
+      <template v-for="row in rows" :key="row.type === 'item' ? row.signal.id : `group:${row.project}`">
+        <SignalRow
+          v-if="row.type === 'item'"
+          :title="row.signal.title"
+          :subtitle="subtitle(row.signal)"
+          :chip="chipFor(row.signal)"
+          :age="ago(row.signal.at, now)"
+          :spoken-age="spokenAge(row.signal.at, now)"
+          :severity="row.signal.severity"
+          :unseen="isUnseen(row.signal)"
+          :avatar="avatarOf(row.signal)"
+          :symbol="symbolOf(row.signal)"
+          :overdue="isOverdue(row.signal, now, overdueHours)"
+          @activate="open(row.signal.id, row.signal.url)"
+          @menu="showMenu([row.signal])"
         />
-
-        <template v-for="row in section.rows" :key="row.type === 'item' ? row.signal.id : groupKey(section, row.project)">
+        <template v-else>
           <SignalRow
-            v-if="row.type === 'item'"
-            :title="row.signal.title"
-            :subtitle="subtitle(row.signal)"
-            :age="ago(row.signal.at, now)"
-            :severity="row.signal.severity"
-            :unseen="!!state.unseen[row.signal.id]"
-            :avatar="avatarOf(row.signal)"
-            :overdue="isOverdue(row.signal, now, overdueHours)"
-            @activate="open(row.signal.id, row.signal.url)"
-            @menu="showMenu([row.signal])"
+            group
+            :title="row.project.split('/').pop() ?? row.project"
+            :count="row.signals.length"
+            :expanded="!!expanded[row.project]"
+            severity="info"
+            :unseen="row.signals.some(isUnseen)"
+            @activate="expanded[row.project] = !expanded[row.project]"
+            @menu="showMenu(row.signals)"
           />
-          <template v-else>
+          <template v-if="expanded[row.project]">
             <SignalRow
-              group
-              :expanded="!!expanded[groupKey(section, row.project)]"
-              :title="row.project"
-              :subtitle="`${row.signals.length} items · ${unseenIn(row.signals).length} new`"
-              age=""
-              :severity="strongest(unseenIn(row.signals))"
-              :unseen="unseenIn(row.signals).length > 0"
-              @activate="expanded[groupKey(section, row.project)] = !expanded[groupKey(section, row.project)]"
-              @menu="showMenu(row.signals)"
+              v-for="signal in row.signals"
+              :key="signal.id"
+              nested
+              :title="signal.title"
+              :subtitle="subtitle(signal)"
+              :chip="chipFor(signal)"
+              :age="ago(signal.at, now)"
+              :spoken-age="spokenAge(signal.at, now)"
+              :severity="signal.severity"
+              :unseen="isUnseen(signal)"
+              :avatar="avatarOf(signal)"
+              :symbol="symbolOf(signal)"
+              @activate="open(signal.id, signal.url)"
+              @menu="showMenu([signal])"
             />
-            <template v-if="expanded[groupKey(section, row.project)]">
-              <SignalRow
-                v-for="signal in row.signals"
-                :key="signal.id"
-                nested
-                :title="signal.title"
-                :subtitle="subtitle(signal)"
-                :age="ago(signal.at, now)"
-                :severity="signal.severity"
-                :unseen="!!state.unseen[signal.id]"
-                :avatar="avatarOf(signal)"
-                :overdue="isOverdue(signal, now, overdueHours)"
-                @activate="open(signal.id, signal.url)"
-                @menu="showMenu([signal])"
-              />
-            </template>
           </template>
         </template>
-      </section>
+      </template>
 
-      <div v-if="sections.length === 0 && query?.trim()" class="empty">
+      <div v-if="rows.length === 0 && query?.trim()" class="empty">
         <span>No matches for “{{ query.trim() }}”.</span>
       </div>
-      <div v-else-if="sections.length === 0 && state.lastRefresh && problems.length === 0" class="empty">
+      <div v-else-if="rows.length === 0 && state.lastRefresh && problems.length === 0" class="empty">
         <Mark :size="32" tone="muted" />
         <span>{{ empty }}</span>
         <template v-if="emptyHint">
@@ -143,7 +147,7 @@ const strongest = (signals: Signal[]): Signal['severity'] =>
 .list {
   flex: 1;
   overflow-y: auto;
-  padding-bottom: 8px;
+  padding: 6px 0 8px;
 }
 
 .empty {

@@ -1,3 +1,5 @@
+import { GITHUB_CLIENT_ID } from './github-app'
+
 export type Service = 'GitHub' | 'Forge' | 'Sentry'
 
 export type AppError =
@@ -49,9 +51,8 @@ const clock = (iso: string) =>
 export function errorText(error: AppError): string {
   switch (error.kind) {
     case 'gh-not-found':
-      return 'GitHub CLI not found — install gh'
     case 'gh-not-authenticated':
-      return 'Not signed in to GitHub CLI'
+      return 'Not signed in to GitHub'
     case 'gh-timeout':
       return 'GitHub CLI did not answer within 5 seconds'
     case 'github-unauthorized':
@@ -83,13 +84,16 @@ export function errorText(error: AppError): string {
 
 export type ErrorHint = { command: string } | { text: string }
 
-export function errorHint(error: AppError): ErrorHint | undefined {
+export function errorHint(error: AppError, canSignIn = GITHUB_CLIENT_ID !== ''): ErrorHint | undefined {
   switch (error.kind) {
     case 'gh-not-found':
-      return { command: 'brew install gh && gh auth login' }
+      return canSignIn
+        ? { text: 'Sign in with GitHub in Settings, or install the GitHub CLI and run gh auth login' }
+        : { command: 'brew install gh && gh auth login' }
     case 'gh-not-authenticated':
-    case 'gh-timeout':
     case 'github-unauthorized':
+      return canSignIn ? { text: 'Sign in with GitHub in Settings, or run gh auth login' } : { command: 'gh auth login' }
+    case 'gh-timeout':
       return { command: 'gh auth login' }
     case 'service-unauthorized':
     case 'service-not-configured':

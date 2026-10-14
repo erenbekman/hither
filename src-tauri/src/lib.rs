@@ -18,6 +18,7 @@ use tauri_plugin_positioner::{Position, WindowExt};
 
 const PANEL: &str = "panel";
 const SETTINGS: &str = "settings";
+const WELCOME: &str = "welcome";
 const TRAY: &str = "main";
 const REOPEN_GUARD: Duration = Duration::from_millis(250);
 
@@ -42,7 +43,9 @@ fn toggle_panel(app: &AppHandle) {
 
 fn show_panel(app: &AppHandle) {
     let Some(panel) = app.get_webview_window(PANEL) else { return };
-    let _ = panel.move_window_constrained(Position::TrayBottomCenter);
+    if panel.move_window_constrained(Position::TrayBottomCenter).is_err() {
+        let _ = panel.move_window(Position::TopRight);
+    }
     let _ = panel.show();
     let _ = panel.set_focus();
 }
@@ -55,6 +58,11 @@ fn reveal_panel(app: AppHandle) {
 #[tauri::command]
 fn open_settings_window(app: AppHandle) {
     open_settings(&app);
+}
+
+#[tauri::command]
+fn open_welcome_window(app: AppHandle) {
+    open_welcome(&app);
 }
 
 #[tauri::command]
@@ -110,6 +118,23 @@ fn open_settings(app: &AppHandle) {
         .min_inner_size(520.0, 360.0)
         .title_bar_style(TitleBarStyle::Overlay)
         .hidden_title(true)
+        .focused(true)
+        .build();
+}
+
+fn open_welcome(app: &AppHandle) {
+    if let Some(window) = app.get_webview_window(WELCOME) {
+        let _ = window.show();
+        let _ = window.set_focus();
+        return;
+    }
+    let _ = WebviewWindowBuilder::new(app, WELCOME, WebviewUrl::default())
+        .title("Welcome to Hither")
+        .inner_size(480.0, 720.0)
+        .resizable(false)
+        .title_bar_style(TitleBarStyle::Overlay)
+        .hidden_title(true)
+        .center()
         .focused(true)
         .build();
 }
@@ -170,11 +195,12 @@ pub fn run() {
             set_tray,
             restart_app,
             open_settings_window,
+            open_welcome_window,
             open_url,
             copy_text,
             hooks::start_hook_listener,
-            hooks::claude_settings_read,
-            hooks::claude_settings_write,
+            hooks::agent_config_read,
+            hooks::agent_config_write,
             launch::git_repo,
             launch::launch_claude,
             launch::checkout_pr,

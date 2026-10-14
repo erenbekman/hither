@@ -11,10 +11,10 @@ import type { NotificationSpec } from '../core/notifications'
 import { isOpenable } from '../core/openable'
 import { SeenStore } from '../core/seen-store'
 import { applyHookEvent, pruneSessions, restoreSessions, type HookEvent, type Sessions } from '../core/sessions'
-import { DEFAULT_SETTINGS, isRepoWatched, muteRepo, type Settings } from '../core/settings'
+import { DEFAULT_SETTINGS, isRepoWatched, muteRepo, type LaneId, type Settings } from '../core/settings'
 import type { Signal, Source } from '../core/types'
 import { describe, isAmbient, isLoud, LANE_ORDER, sourceLanes } from '../lanes'
-import { checkoutPullRequest, copyText, focusTerminal, ghToken, openUrl, revealPanel, secretGet, setTray, startHookListener } from '../native'
+import { checkoutPullRequest, copyText, focusTerminal, openSettings, openUrl, openWelcome, revealPanel, secretGet, setTray, startHookListener } from '../native'
 import { AGENT_SOURCE_ID, claudeCodeSource } from '../sources/claude-code'
 import { CI_RECOVERY, githubSource } from '../sources/github'
 import { countRepos } from '../sources/github/account'
@@ -22,6 +22,7 @@ import { activitySource } from '../sources/github/activity'
 import { FORGE_TOKEN_KEY, forgeSource } from '../sources/forge'
 import { SENTRY_TOKEN_KEY, sentrySource } from '../sources/sentry'
 import type { HookStatus } from '../core/claude-settings'
+import { githubToken } from './github-auth'
 import { hookToken, installHooks, readHookStatus } from './hooks'
 import { announceSettingsChanged, onSettingsChanged, openSettingsStore, readSettings, REPOS_FILE, writeSettings } from './settings-store'
 
@@ -44,7 +45,7 @@ export function startBoard() {
   let settingsStore: Store | undefined
   let board: ReturnType<typeof createBoard> | undefined
 
-  const github = githubSource({ token: ghToken, settings: () => current.value })
+  const github = githubSource({ token: githubToken, settings: () => current.value })
   const forge = forgeSource({ token: () => secretGet(FORGE_TOKEN_KEY), settings: () => current.value, fetchFn: httpFetch })
   const sentry = sentrySource({ token: () => secretGet(SENTRY_TOKEN_KEY), settings: () => current.value, fetchFn: httpFetch })
   let sessions: Sessions = {}
@@ -53,14 +54,18 @@ export function startBoard() {
   const hooks = reactive<{ status?: HookStatus; busy: boolean }>({ busy: false })
   let storageNotice: string | undefined
   const agents = claudeCodeSource({ sessions: () => sessions, problem: () => listenerProblem, notices: () => (storageNotice ? [...hookNotices, storageNotice] : hookNotices) })
-  const activity = activitySource({ token: ghToken })
-  const sources = (): Source[] => [
-    github,
-    ...(current.value.hiddenKinds.includes('activity') ? [] : [activity]),
-    agents,
-    ...(current.value.forgeEnabled ? [forge] : []),
-    ...(current.value.sentryEnabled ? [sentry] : []),
-  ]
+  const activity = activitySource({ token: githubToken })
+  const sources = (): Source[] => {
+    const settings = current.value
+    const on = (lane: LaneId) => settings.lanes.includes(lane)
+    return [
+      ...(on('incoming') || on('outgoing') || on('agents') ? [github] : []),
+      ...(on('incoming') && !settings.hiddenKinds.includes('activity') ? [activity] : []),
+      ...(on('agents') ? [agents] : []),
+      ...(on('outgoing') && settings.forgeEnabled ? [forge] : []),
+      ...(on('outgoing') && settings.sentryEnabled ? [sentry] : []),
+    ]
+  }
 
   async function checkHooks() {
     try {
@@ -112,19 +117,66 @@ export function startBoard() {
         .flat()
         .flatMap((section) => section.signals)
         .find((s) => s.id === id)
-      if (signal?.source === AGENT_SOURCE_ID) await focusTerminal(typeof signal.meta?.terminal === 'string' ? signal.meta.terminal : current.value.terminal)
-      else if (url && isOpenable(url, siteHosts())) await openUrl(url)
+      if (signal?.source === AGENT_SOURCE_ID) {
+        const text = (value: unknown) => (typeof value === 'string' ? value : undefined)
+        await focusTerminal(text(signal.meta?.terminal) ?? current.value.terminal, text(signal.meta?.terminalSession), text(signal.meta?.cwd))
+      } else if (url && isOpenable(url, siteHosts())) await openUrl(url)
       await board?.markSeen([id])
     } catch (error) {
       report('open', error)
     }
   }
 
-  async function mute(repo: string) {
-    const patch = muteRepo(current.value, repo)
+  async function saveSettings(patch: Partial<Settings>) {
     current.value = { ...current.value, ...patch }
     if (settingsStore) await writeSettings(settingsStore, patch)
     else await board?.refresh()
+  }
+
+  const mute = (repo: string) => saveSettings(muteRepo(current.value, repo))
+
+  async function showScopeMenu() {
+    const selected = current.value.organizations
+    const known = [...new Set([...(state.profile?.organizations ?? []), ...selected])].sort()
+    const choose = (organizations: string[]) => () => void saveSettings({ organizations }).catch((error) => report('menu', error))
+    const menu = await Menu.new({
+      items: [
+        { text: 'Your repositories', checked: selected.length === 0, action: choose([]) },
+        { item: 'Separator' as const },
+        { text: 'Assigned to you in', enabled: false },
+        ...known.map((org) => ({
+          text: org,
+          checked: selected.includes(org),
+          action: choose(selected.includes(org) ? selected.filter((entry) => entry !== org) : [...selected, org]),
+        })),
+      ],
+    })
+    await popup(menu)
+  }
+
+  let openMenu: Menu | undefined
+  const run = (task: () => Promise<unknown> | undefined) => () => void Promise.resolve(task()).catch((error) => report('menu', error))
+
+  async function popup(menu: Menu) {
+    void openMenu?.close()
+    openMenu = menu
+    await menu.popup()
+  }
+
+  async function showMoreMenu() {
+    const account = state.account
+    await popup(
+      await Menu.new({
+        items: [
+          { text: 'Open GitHub', accelerator: 'CmdOrCtrl+O', enabled: !!account, action: run(() => openUrl(`https://github.com/${account}`)) },
+          { text: 'Settings…', accelerator: 'CmdOrCtrl+,', action: run(() => openSettings()) },
+          { item: 'Separator' as const },
+          { text: 'Mark All as Seen', accelerator: 'Shift+CmdOrCtrl+A', action: run(() => board?.markAllSeen()) },
+          { item: 'Separator' as const },
+          { item: 'Quit' as const, text: 'Quit Hither' },
+        ],
+      }),
+    )
   }
 
   async function showMenu(targets: Signal[], folders: Record<string, string>) {
@@ -137,7 +189,6 @@ export function startBoard() {
     const terminal = current.value.terminal
     const repo =
       targets.every((s) => s.source === 'github' && s.project === first.project) && isRepoWatched(current.value, first.project) ? first.project : undefined
-    const run = (task: () => Promise<unknown> | undefined) => () => void Promise.resolve(task()).catch((error) => report('menu', error))
     const separator = { item: 'Separator' as const }
     const copies = [
       ...(single?.url ? [{ text: 'Copy Link', action: run(() => copyText(single.url!)) }] : []),
@@ -162,7 +213,7 @@ export function startBoard() {
         ...(repo ? [{ text: `Mute ${repo}`, action: run(() => mute(repo)) }] : []),
       ],
     })
-    await menu.popup()
+    await popup(menu)
   }
 
   async function boot() {
@@ -196,6 +247,7 @@ export function startBoard() {
     ])
     settingsStore = store
     current.value = await readSettings(store)
+    if (!current.value.onboarded) void openWelcome().catch((error) => report('welcome', error))
     const seen = new SeenStore(await seenStore.get('state'))
     sessions = pruneSessions(restoreSessions(await agentStore.get('sessions')), new Date())
 
@@ -304,6 +356,8 @@ export function startBoard() {
     installAgentHooks,
     open,
     showMenu: (targets: Signal[], folders: Record<string, string>) => void showMenu(targets, folders).catch((error) => report('menu', error)),
+    showScopeMenu: () => void showScopeMenu().catch((error) => report('menu', error)),
+    showMoreMenu: () => void showMoreMenu().catch((error) => report('menu', error)),
     refresh: () => board?.refresh(),
     markSeen: (ids: string[]) => board?.markSeen(ids),
     markAllSeen: () => board?.markAllSeen(),

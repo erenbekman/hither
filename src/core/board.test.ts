@@ -316,7 +316,7 @@ describe('createBoard', () => {
 
   it('keeps the profile and quota, and says how old the data is when a refresh fails', async () => {
     let now = new Date('2026-10-14T12:30:00Z')
-    const profile = { followers: 3, stars: 2, starsAreExact: true }
+    const profile = { followers: 3, stars: 2, starsAreExact: true, organizations: [] }
     const quota = { limit: 5000, remaining: 4000, resetAt: '2026-10-14T13:00:00Z' }
     const github = fakeSource('github', [ok([signal(1)], { profile, quota }), { kind: 'network', message: 'offline' }])
     const { state, board } = setup([github], { now: () => now })
@@ -365,7 +365,7 @@ describe('createBoard', () => {
   })
 
   it('brings the last lists back on launch without notifying', async () => {
-    const profile = { followers: 3, stars: 2, starsAreExact: true }
+    const profile = { followers: 3, stars: 2, starsAreExact: true, organizations: [] }
     const first = setup([fakeSource('github', [ok([signal(1), signal(2, 'ci-failed')], { account: 'alice', profile })])])
     await first.board.refresh()
     const saved = parseSnapshot(JSON.parse(JSON.stringify(first.board.snapshot())))!
@@ -393,6 +393,16 @@ describe('createBoard', () => {
     expect(parseSnapshot({ sources: {} })).toBeUndefined()
     const parsed = parseSnapshot({ savedAt: '2026-10-14T12:00:00Z', sources: { github: { at: '2026-10-14T12:00:00Z', signals: [signal(1), { id: 3 }] } } })
     expect(parsed?.sources.github.signals).toEqual([signal(1)])
+  })
+
+  it('leaves turned-off lanes empty, without badges or notifications', async () => {
+    const github = fakeSource('github', [ok([]), ok([signal(1), signal(2, 'ci-failed')])])
+    const { state, deps, board } = setup([github], { settings: () => ({ ...DEFAULT_SETTINGS, lanes: ['incoming'] }) })
+    await board.refresh()
+    await board.refresh()
+    expect(state.lanes.outgoing).toEqual([])
+    expect(state.laneBadges.outgoing).toBe(0)
+    expect(notified(deps).map((spec) => spec.url)).toEqual([signal(1).url])
   })
 })
 

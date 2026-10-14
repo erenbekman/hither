@@ -1,3 +1,4 @@
+import { agentName } from './sessions'
 import type { Signal } from './types'
 
 export interface ForgeLogIds {
@@ -10,7 +11,7 @@ export type SuggestionAction =
   | { kind: 'claude'; template: string; repo: string; vars: Record<string, string>; log?: ForgeLogIds }
   | { kind: 'summarize'; template: string; repo: string; vars: Record<string, string> }
   | { kind: 'open'; url: string; label: string }
-  | { kind: 'focus-terminal'; terminal?: string }
+  | { kind: 'focus-terminal'; terminal?: string; session?: string; folder?: string }
 
 export interface Suggestion {
   id: string
@@ -194,11 +195,18 @@ function fromSignals(input: RuleInput): Suggestion[] {
           id: `agent-waiting:${s.id}:${s.at}`,
           rule: 'agent-waiting',
           severity: 'attention',
-          title: `Claude has waited ${Math.floor(waited / MINUTE)} minutes in ${s.project}`,
+          title: `${agentName(s.meta?.agent)} has waited ${Math.floor(waited / MINUTE)} minutes in ${s.project}`,
           detail: s.title,
           at: s.at,
           remind: true,
-          actions: [{ kind: 'focus-terminal', ...(typeof s.meta?.terminal === 'string' ? { terminal: s.meta.terminal } : {}) }],
+          actions: [
+            {
+              kind: 'focus-terminal',
+              ...(str(s.meta?.terminal) ? { terminal: str(s.meta?.terminal) } : {}),
+              ...(str(s.meta?.terminalSession) ? { session: str(s.meta?.terminalSession) } : {}),
+              ...(str(s.meta?.cwd) ? { folder: str(s.meta?.cwd) } : {}),
+            },
+          ],
         },
       ]
     }

@@ -1,5 +1,5 @@
 import type { Lane, Signal } from './core/types'
-import { ACTIVITY_LABELS, CI_KINDS, describeSignal as describeGitHub, KIND_ORDER, KIND_TITLES, QUIET_KINDS } from './sources/github'
+import { describeSignal as describeGitHub, KIND_ORDER, KIND_TITLES, QUIET_KINDS } from './sources/github'
 import { ACTIVITY_SOURCE_ID } from './sources/github/activity'
 import { describeDeployment } from './sources/forge'
 import { describeIssue } from './sources/sentry'
@@ -52,9 +52,46 @@ export function isAmbient(signal: Signal): boolean {
 export function describe(signal: Signal): string {
   if (signal.source === 'forge') return describeDeployment(signal)
   if (signal.source === 'sentry') return describeIssue(signal)
-  if (signal.source === 'claude-code') return describeSession(signal.meta?.state)
+  if (signal.source === 'claude-code') return describeSession(signal.meta?.state, signal.meta?.agent)
   return describeGitHub(signal)
 }
+
+export type ChipTone = 'red' | 'orange' | 'blue' | 'green' | 'gray'
+
+const CHIPS: Record<string, [string, ChipTone]> = {
+  'changes-requested': ['Changes', 'orange'],
+  conflicting: ['Conflicts', 'red'],
+  'review-requested': ['Review', 'orange'],
+  'ready-to-merge': ['Ready', 'green'],
+  assigned: ['Assigned', 'gray'],
+  mentioned: ['Mentioned', 'blue'],
+  issue: ['Issue', 'gray'],
+  'my-pr': ['Yours', 'gray'],
+  'deploy-failed': ['Deploy failed', 'red'],
+  'error-spike': ['Error spike', 'orange'],
+  'error-new': ['New error', 'orange'],
+  'ci-failed': ['Checks failed', 'orange'],
+  'deploy-running': ['Deploying', 'blue'],
+  'ci-fixed': ['Checks fixed', 'green'],
+  'deploy-ok': ['Deployed', 'green'],
+  'agent-waiting': ['Waiting', 'orange'],
+  'agent-failed': ['Error', 'red'],
+  'agent-pr-ready': ['PR ready', 'green'],
+  'agent-running': ['Working', 'gray'],
+  'agent-done': ['Done', 'gray'],
+  'agent-pr': ['Agent PR', 'gray'],
+}
+
+const ACTIVITY_CHIPS: Record<string, string> = { comment: 'Comment', mention: 'Mention', team_mention: 'Mention', state_change: 'Updated' }
+
+export function chipFor(signal: Signal): { label: string; tone: ChipTone } | undefined {
+  if (signal.kind === 'activity') return { label: ACTIVITY_CHIPS[String(signal.meta?.reason)] ?? 'Activity', tone: 'blue' }
+  if (signal.kind === 'ci-main-failed') return { label: `${signal.meta?.branch ?? 'main'} is red`, tone: 'red' }
+  const chip = Object.hasOwn(CHIPS, signal.kind) ? CHIPS[signal.kind] : undefined
+  return chip && { label: chip[0], tone: chip[1] }
+}
+
+const repoName = (project: string) => project.split('/').pop() ?? project
 
 export function subtitle(signal: Signal): string {
   const meta = signal.meta ?? {}
@@ -64,22 +101,11 @@ export function subtitle(signal: Signal): string {
     case 'sentry':
       return [signal.project, meta.shortId, `${meta.lastHour ?? 0} in the last hour`].filter(Boolean).join(' · ')
     case 'claude-code':
-      return [signal.project, meta.sessionTitle].filter(Boolean).join(' · ')
+      return [meta.agent === 'codex' ? 'Codex' : undefined, signal.project, meta.sessionTitle, meta.terminal].filter(Boolean).join(' · ')
     default:
-      if ((CI_KINDS as readonly string[]).includes(signal.kind) && meta.branch) {
-        return [signal.project, meta.branch, signal.actor && `@${signal.actor}`].filter(Boolean).join(' · ')
+      if (meta.number === undefined) {
+        return [repoName(signal.project), meta.branch, signal.actor && `by ${signal.actor}`].filter(Boolean).join(' · ')
       }
-      if (signal.lane === 'agents') {
-        const checks = meta.isDraft ? 'draft' : meta.ci === 'SUCCESS' ? 'checks green' : meta.ci ? `checks ${String(meta.ci).toLowerCase()}` : undefined
-        return [`${signal.project} #${meta.number}`, signal.actor && `@${signal.actor}`, checks].filter(Boolean).join(' · ')
-      }
-      return [
-        `${signal.project} #${meta.number}`,
-        signal.actor && `@${signal.actor}`,
-        meta.isDraft ? 'draft' : undefined,
-        signal.kind === 'activity' ? ACTIVITY_LABELS[String(meta.reason)] : undefined,
-      ]
-        .filter(Boolean)
-        .join(' · ')
+      return `${repoName(signal.project)} #${meta.number}${signal.actor ? ` by ${signal.actor}` : ''}${meta.isDraft ? ', draft' : ''}`
   }
 }

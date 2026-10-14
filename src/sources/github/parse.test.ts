@@ -106,9 +106,10 @@ describe('parseResponse', () => {
       followers: 42,
       stars: 37,
       starsAreExact: false,
+      organizations: ['widgets'],
     })
     const bare = withData({ viewer: { login: 'a' } })
-    expect(parseResponse(bare, RESET).profile).toEqual({ followers: 0, stars: 0, starsAreExact: true })
+    expect(parseResponse(bare, RESET).profile).toEqual({ followers: 0, stars: 0, starsAreExact: true, organizations: [] })
   })
 
   it('tells pull requests and issues apart in the mixed searches', () => {

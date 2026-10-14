@@ -2,12 +2,11 @@ cask "hither" do
   version "{{version}}"
   sha256 "{{sha256}}"
 
-  url "https://github.com/erenbekman/hither/releases/download/v#{version}/Hither_#{version}_aarch64.dmg"
+  url "https://github.com/erenbekman/hither/releases/download/v#{version}/Hither_#{version}_universal.dmg"
   name "Hither"
   desc "PRs, deploys and agents in the menu bar"
   homepage "https://erenbekman.github.io/hither/"
 
-  depends_on arch: :arm64
   depends_on macos: ">= :ventura"
   auto_updates true
 
@@ -22,7 +21,7 @@ cask "hither" do
   ]
 
   caveats <<~EOS
-    If you installed the Claude Code hooks, remove them first from
+    If you installed the Claude Code or Codex hooks, remove them first from
     Hither → Settings → Agents → Remove.
     Tokens stay in your login Keychain under the service "dev.hither.app".
   EOS

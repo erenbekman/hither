@@ -14,8 +14,8 @@ step() { printf '\n==> %s\n' "$*"; }
 version=$(node -p "require('./package.json').version")
 notes="${1:-}"
 out="release/$version"
-dmg_name="Hither_${version}_aarch64.dmg"
-bundle=src-tauri/target/release/bundle/macos
+dmg_name="Hither_${version}_universal.dmg"
+bundle=src-tauri/target/universal-apple-darwin/release/bundle/macos
 
 [ -n "${TAURI_SIGNING_PRIVATE_KEY_PASSWORD+set}" ] || fail "export TAURI_SIGNING_PRIVATE_KEY_PASSWORD (empty if the key has none)"
 [ -f "$KEY" ] || fail "updater private key not found at $KEY"
@@ -33,12 +33,15 @@ const latest = {
   version,
   notes,
   pub_date: new Date().toISOString(),
-  platforms: {
-    'darwin-aarch64': {
-      signature: fs.readFileSync(`${out}/Hither.app.tar.gz.sig`, 'utf8').trim(),
-      url: `https://github.com/${repo}/releases/download/v${version}/Hither.app.tar.gz`,
-    },
-  },
+  platforms: Object.fromEntries(
+    ['darwin-aarch64', 'darwin-x86_64'].map((platform) => [
+      platform,
+      {
+        signature: fs.readFileSync(`${out}/Hither.app.tar.gz.sig`, 'utf8').trim(),
+        url: `https://github.com/${repo}/releases/download/v${version}/Hither.app.tar.gz`,
+      },
+    ]),
+  ),
 }
 fs.writeFileSync(`${out}/latest.json`, JSON.stringify(latest, null, 2) + '\n')
 JS

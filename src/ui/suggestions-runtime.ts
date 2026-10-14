@@ -69,6 +69,10 @@ export function startSuggestions(deps: { board: BoardState; settings: () => Sett
   function recompute() {
     if (!deps.board.lastRefresh) return
     const settings = deps.settings()
+    if (!settings.lanes.includes('suggestions')) {
+      state.cards = []
+      return
+    }
     const signals = Object.values(deps.board.lanes).flat().flatMap((section) => section.signals)
     const cards = suggest({ signals, now: new Date(), sentryOrg: settings.sentryOrg, sentryProjectForSite: settings.sentryProjectForSite })
     const ids = new Set(cards.map((card) => card.id))
@@ -125,7 +129,7 @@ export function startSuggestions(deps: { board: BoardState; settings: () => Sett
           await openUrl(action.url)
           break
         case 'focus-terminal':
-          await focusTerminal(action.terminal ?? deps.settings().terminal)
+          await focusTerminal(action.terminal ?? deps.settings().terminal, action.session, action.folder)
           break
         case 'claude': {
           const folder = stored.folders[action.repo]

@@ -6,6 +6,7 @@ IDENTITY="${HITHER_SIGNING_IDENTITY:-Developer ID Application: Eren Bekman (VSQK
 PROFILE="${HITHER_NOTARY_PROFILE:-hither-notary}"
 KEY="${HITHER_UPDATER_KEY:-$HOME/.tauri/hither.key}"
 REPO="erenbekman/hither"
+RUSTUP_BIN="$(brew --prefix rustup 2>/dev/null || true)/bin"
 
 fail() {
   echo "release: $*" >&2
@@ -31,17 +32,22 @@ security find-identity -v -p codesigning | grep -qF "\"$IDENTITY\"" || fail "sig
 xcrun notarytool history --keychain-profile "$PROFILE" >/dev/null 2>&1 || fail "notary profile '$PROFILE' not found; run: xcrun notarytool store-credentials $PROFILE"
 [ -z "$(git status --porcelain)" ] || fail "commit or stash your changes first"
 git rev-parse -q --verify "refs/tags/v$version" >/dev/null && fail "tag v$version already exists; bump the version in package.json"
+grep -q "GITHUB_CLIENT_ID = ''" src/core/github-app.ts && fail "set the GitHub OAuth client id in src/core/github-app.ts"
+[ -x "$RUSTUP_BIN/rustup" ] || fail "rustup not found; run: brew install rustup"
+for target in aarch64-apple-darwin x86_64-apple-darwin; do
+  "$RUSTUP_BIN/rustup" target list --installed | grep -qx "$target" || fail "Rust target $target missing; run: $RUSTUP_BIN/rustup target add $target"
+done
 
 step "Running tests"
 npm test
 (cd src-tauri && cargo test --quiet)
 
 step "Building and signing with $IDENTITY"
-APPLE_SIGNING_IDENTITY="$IDENTITY" npm run tauri build
+PATH="$RUSTUP_BIN:$PATH" APPLE_SIGNING_IDENTITY="$IDENTITY" npm run tauri build -- --target universal-apple-darwin
 
-bundle=src-tauri/target/release/bundle
+bundle=src-tauri/target/universal-apple-darwin/release/bundle
 app="$bundle/macos/Hither.app"
-dmg_name="Hither_${version}_aarch64.dmg"
+dmg_name="Hither_${version}_universal.dmg"
 out="release/$version"
 rm -rf "$out"
 mkdir -p "$out"
@@ -58,6 +64,7 @@ xcrun notarytool submit "$out/$dmg_name" --keychain-profile "$PROFILE" --wait
 xcrun stapler staple "$out/$dmg_name"
 
 step "Verifying"
+lipo -archs "$app/Contents/MacOS/hither" | grep -q x86_64 || fail "Hither.app is not a universal binary"
 codesign --verify --deep --strict --verbose=2 "$app"
 spctl --assess --type execute --verbose=2 "$app"
 xcrun stapler validate "$app"

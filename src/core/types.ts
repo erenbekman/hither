@@ -24,6 +24,7 @@ export interface Profile {
   followers: number
   stars: number
   starsAreExact: boolean
+  organizations: string[]
 }
 
 export interface Quota {

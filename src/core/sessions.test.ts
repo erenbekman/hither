@@ -54,6 +54,16 @@ describe('applyHookEvent', () => {
     expect(play([0, event('SessionStart', { terminal: '__proto__' })]).s1.terminal).toBeUndefined()
   })
 
+  it('waits for you when Codex asks for permission, and remembers which agent and tab it is', () => {
+    const s = play(
+      [0, event('SessionStart', { agent: 'codex', terminal: 'iTerm.app', terminal_session: 'w0t1p0:9A6B1C2D-0000-4000-8000-ABCDEFABCDEF' })],
+      [2, event('PermissionRequest', { agent: 'codex', tool_name: 'shell' })],
+    ).s1
+    expect(s).toMatchObject({ state: 'waiting', agent: 'codex', message: 'Codex needs your permission to use shell', terminalSession: 'w0t1p0:9A6B1C2D-0000-4000-8000-ABCDEFABCDEF' })
+    const [signal] = sessionSignals({ s1: s }, at(3))
+    expect(signal.meta).toMatchObject({ agent: 'codex', terminalSession: 'w0t1p0:9A6B1C2D-0000-4000-8000-ABCDEFABCDEF' })
+  })
+
   it('drops the session when it ends', () => {
     expect(play([0, event('SessionStart')], [1, event('SessionEnd', { reason: 'prompt_input_exit' })])).toEqual({})
   })

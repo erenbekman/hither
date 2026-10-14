@@ -21,8 +21,6 @@ export type GitHubKind = (typeof KIND_ORDER)[number]
 
 export const QUIET_KINDS: readonly string[] = ['my-pr']
 
-export const CI_KINDS = ['ci-main-failed', 'ci-failed', 'ci-fixed'] as const
-
 export const CI_RECOVERY = {
   passing: 'ci-passed',
   failing: ['ci-main-failed', 'ci-failed'],
@@ -57,13 +55,6 @@ const SEARCH_KIND: Record<SearchKey, GitHubKind> = {
 
 const ATTENTION_KINDS: readonly string[] = ['changes-requested', 'review-requested', 'conflicting']
 
-export const ACTIVITY_LABELS: Record<string, string> = {
-  author: 'your thread',
-  comment: 'new comment',
-  mention: 'mentioned',
-  team_mention: 'team mentioned',
-  state_change: 'state changed',
-}
 
 const ACTIVITY_VERBS: Record<string, string> = {
   comment: 'New comment on',
