@@ -1,4 +1,5 @@
 mod gh;
+mod hooks;
 mod secret;
 
 use std::process::Command;
@@ -117,6 +118,7 @@ pub fn run() {
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_http::init())
         .manage(LastHidden(Mutex::new(None)))
+        .manage(hooks::Listener::default())
         .invoke_handler(tauri::generate_handler![
             gh::gh_token,
             secret::secret_get,
@@ -125,6 +127,9 @@ pub fn run() {
             reveal_panel,
             set_badge,
             open_url,
+            hooks::start_hook_listener,
+            hooks::claude_settings_read,
+            hooks::claude_settings_write,
         ])
         .setup(|app| {
             #[cfg(target_os = "macos")]
