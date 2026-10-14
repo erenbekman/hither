@@ -3,5 +3,5 @@
   "identifier": "default",
   "description": "Panel and settings windows",
   "windows": ["panel", "settings"],
-  "permissions": ["core:default", "store:default"]
+  "permissions": ["core:default", "store:default", "notification:default"]
 }

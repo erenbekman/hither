@@ -1,6 +1,7 @@
 mod gh;
 mod secret;
 
+use std::process::Command;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
@@ -11,6 +12,7 @@ use tauri_plugin_positioner::{Position, WindowExt};
 
 const PANEL: &str = "panel";
 const SETTINGS: &str = "settings";
+const TRAY: &str = "main";
 const REOPEN_GUARD: Duration = Duration::from_millis(250);
 
 struct LastHidden(Mutex<Option<Instant>>);
@@ -27,12 +29,40 @@ fn toggle_panel(app: &AppHandle) {
         .lock()
         .unwrap()
         .is_some_and(|at| at.elapsed() < REOPEN_GUARD);
-    if just_hidden {
-        return;
+    if !just_hidden {
+        show_panel(app);
     }
+}
+
+fn show_panel(app: &AppHandle) {
+    let Some(panel) = app.get_webview_window(PANEL) else { return };
     let _ = panel.move_window_constrained(Position::TrayBottomCenter);
     let _ = panel.show();
     let _ = panel.set_focus();
+}
+
+#[tauri::command]
+fn reveal_panel(app: AppHandle) {
+    show_panel(&app);
+}
+
+#[tauri::command]
+fn set_badge(app: AppHandle, count: u32) {
+    if let Some(tray) = app.tray_by_id(TRAY) {
+        let _ = tray.set_title((count > 0).then(|| format!(" {count}")));
+    }
+}
+
+#[tauri::command]
+async fn open_url(url: String) -> Result<(), String> {
+    if !url.starts_with("https://github.com/") {
+        return Err(format!("refusing to open {url}"));
+    }
+    tauri::async_runtime::spawn_blocking(move || Command::new("/usr/bin/open").arg(url).status())
+        .await
+        .map_err(|e| e.to_string())?
+        .map_err(|e| e.to_string())
+        .map(|_| ())
 }
 
 fn open_settings(app: &AppHandle) {
@@ -43,8 +73,7 @@ fn open_settings(app: &AppHandle) {
     }
     let _ = WebviewWindowBuilder::new(app, SETTINGS, WebviewUrl::default())
         .title("Hither Settings")
-        .inner_size(480.0, 360.0)
-        .resizable(false)
+        .inner_size(480.0, 640.0)
         .focused(true)
         .build();
 }
@@ -54,7 +83,7 @@ fn setup_tray(app: &AppHandle) -> tauri::Result<()> {
     let quit = MenuItem::with_id(app, "quit", "Quit Hither", true, Some("Cmd+Q"))?;
     let menu = Menu::with_items(app, &[&settings, &quit])?;
 
-    TrayIconBuilder::with_id("main")
+    TrayIconBuilder::with_id(TRAY)
         .icon(app.default_window_icon().unwrap().clone())
         .tooltip("Hither")
         .menu(&menu)
@@ -85,12 +114,16 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_positioner::init())
         .plugin(tauri_plugin_store::Builder::new().build())
+        .plugin(tauri_plugin_notification::init())
         .manage(LastHidden(Mutex::new(None)))
         .invoke_handler(tauri::generate_handler![
             gh::gh_token,
             secret::secret_get,
             secret::secret_set,
             secret::secret_delete,
+            reveal_panel,
+            set_badge,
+            open_url,
         ])
         .setup(|app| {
             #[cfg(target_os = "macos")]
