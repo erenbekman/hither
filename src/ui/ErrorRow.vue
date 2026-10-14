@@ -10,7 +10,8 @@ const hint = computed(() => errorHint(props.error))
 <template>
   <div class="error-row" role="alert">
     <span>{{ text }}</span>
-    <span v-if="hint" class="hint">Run <code>{{ hint }}</code> in a terminal</span>
+    <span v-if="hint && 'command' in hint" class="hint">Run <code>{{ hint.command }}</code> in a terminal</span>
+    <span v-else-if="hint" class="hint">{{ hint.text }}</span>
   </div>
 </template>
 

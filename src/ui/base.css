@@ -10,6 +10,7 @@
   --hover: #f2f2f7;
   --notice-bg: #fff6e0;
   --notice-fg: #8a5a00;
+  --warn: #d97706;
   font: 13px/1.4 -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
   color: var(--fg);
   background: var(--bg);
@@ -28,6 +29,7 @@
     --hover: #2c2c2e;
     --notice-bg: #3a2e14;
     --notice-fg: #f0c060;
+    --warn: #f59e0b;
   }
 }
 

@@ -1,20 +1,37 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive } from 'vue'
+import { fetch as httpFetch } from '@tauri-apps/plugin-http'
 import type { Store } from '@tauri-apps/plugin-store'
 import { toAppError, type AppError } from '../core/errors'
 import { DEFAULT_SETTINGS, normalizeSettings, type Settings } from '../core/settings'
 import { fetchOrganizations, KIND_ORDER, KIND_TITLES } from '../sources/github'
-import { ghToken } from '../native'
+import { ghToken, secretDelete, secretGet, secretSet } from '../native'
+import { FORGE_TOKEN_KEY, listForgeOrganizations, listForgeServers } from '../sources/forge'
+import { SENTRY_TOKEN_KEY } from '../sources/sentry'
 import ErrorRow from './ErrorRow.vue'
 import { openSettingsStore, readSettings, writeSettings } from './settings-store'
 
 const state = reactive<{
   settings: Settings
   organizations: string[]
+  forgeOrgs: { slug: string; name: string }[]
+  forgeServers: { id: string; name: string }[]
+  tokens: Record<string, boolean>
+  tokenInput: Record<string, string>
   loaded: boolean
   saved: boolean
   errors: AppError[]
-}>({ settings: { ...DEFAULT_SETTINGS }, organizations: [], loaded: false, saved: false, errors: [] })
+}>({
+  settings: { ...DEFAULT_SETTINGS },
+  organizations: [],
+  forgeOrgs: [],
+  forgeServers: [],
+  tokens: {},
+  tokenInput: {},
+  loaded: false,
+  saved: false,
+  errors: [],
+})
 
 let store: Store | undefined
 
@@ -28,25 +45,80 @@ const repoList = computed({
   get: () => state.settings.repoList.join('\n'),
   set: (text: string) => (state.settings.repoList = lines(text)),
 })
+const watchedRepos = computed({
+  get: () => state.settings.watchedRepos.join('\n'),
+  set: (text: string) => (state.settings.watchedRepos = lines(text)),
+})
+const sentryProjects = computed({
+  get: () => state.settings.sentryProjects.join(', '),
+  set: (text: string) => (state.settings.sentryProjects = lines(text)),
+})
 const allOrganizations = computed(() => [...new Set([...state.organizations, ...state.settings.organizations])])
 
 function toggle(list: string[], value: string, on: boolean): string[] {
   return on ? [...new Set([...list, value])] : list.filter((entry) => entry !== value)
 }
 
-onMounted(async () => {
+async function attempt(task: () => Promise<void>) {
   try {
+    await task()
+  } catch (error) {
+    state.errors.push(toAppError(error))
+  }
+}
+
+async function loadForge() {
+  const token = await secretGet(FORGE_TOKEN_KEY)
+  if (!token) return
+  await attempt(async () => {
+    state.forgeOrgs = await listForgeOrganizations(token, httpFetch)
+    if (!state.settings.forgeOrg && state.forgeOrgs.length === 1) state.settings.forgeOrg = state.forgeOrgs[0].slug
+  })
+  if (state.settings.forgeOrg) {
+    await attempt(async () => {
+      state.forgeServers = await listForgeServers(token, state.settings.forgeOrg, httpFetch)
+    })
+  }
+}
+
+async function saveToken(key: string) {
+  const value = state.tokenInput[key]?.trim()
+  if (!value) return
+  await attempt(async () => {
+    await secretSet(key, value)
+    state.tokenInput[key] = ''
+    state.tokens[key] = true
+    if (key === FORGE_TOKEN_KEY) await loadForge()
+  })
+}
+
+async function forgetToken(key: string) {
+  await attempt(async () => {
+    await secretDelete(key)
+    state.tokens[key] = false
+  })
+}
+
+async function chooseForgeOrg(slug: string) {
+  state.settings.forgeOrg = slug
+  state.settings.forgeServers = []
+  state.forgeServers = []
+  await loadForge()
+}
+
+onMounted(async () => {
+  await attempt(async () => {
     store = await openSettingsStore()
     state.settings = await readSettings(store)
     state.loaded = true
-  } catch (error) {
-    state.errors.push(toAppError(error))
-  }
-  try {
+  })
+  await attempt(async () => {
+    for (const key of [FORGE_TOKEN_KEY, SENTRY_TOKEN_KEY]) state.tokens[key] = (await secretGet(key)) !== null
+  })
+  await attempt(async () => {
     state.organizations = await fetchOrganizations(await ghToken())
-  } catch (error) {
-    state.errors.push(toAppError(error))
-  }
+  })
+  await loadForge()
 })
 
 async function save() {
@@ -100,6 +172,65 @@ async function save() {
         <label><input v-model="state.settings.repoListIsAllowList" type="radio" :value="false" /> Hide these</label>
         <label><input v-model="state.settings.repoListIsAllowList" type="radio" :value="true" /> Only these</label>
       </div>
+
+      <label class="block">
+        Watch the main branch of <span class="hint">owner/name, one per line; a red build shows under Outgoing</span>
+        <textarea v-model.lazy="watchedRepos" rows="3" />
+      </label>
+
+      <h2>Forge</h2>
+      <label class="line"><input v-model="state.settings.forgeEnabled" type="checkbox" /> Watch Forge deployments</label>
+      <template v-if="state.settings.forgeEnabled">
+        <div class="block">
+          API token
+          <span class="hint">{{ state.tokens[FORGE_TOKEN_KEY] ? 'Saved in Keychain' : 'Create one at forge.laravel.com/profile/api' }}</span>
+          <div class="line">
+            <input v-model="state.tokenInput[FORGE_TOKEN_KEY]" type="password" placeholder="Paste a new token" autocomplete="off" />
+            <button @click="saveToken(FORGE_TOKEN_KEY)">Save token</button>
+            <button v-if="state.tokens[FORGE_TOKEN_KEY]" @click="forgetToken(FORGE_TOKEN_KEY)">Remove</button>
+          </div>
+        </div>
+        <label v-if="state.forgeOrgs.length > 0" class="block">
+          Organization
+          <select :value="state.settings.forgeOrg" @change="chooseForgeOrg(($event.target as HTMLSelectElement).value)">
+            <option value="" disabled>Choose…</option>
+            <option v-for="org in state.forgeOrgs" :key="org.slug" :value="org.slug">{{ org.name }}</option>
+          </select>
+        </label>
+        <div v-if="state.forgeServers.length > 0" class="block">
+          Servers
+          <label v-for="server in state.forgeServers" :key="server.id" class="line">
+            <input
+              type="checkbox"
+              :checked="state.settings.forgeServers.includes(server.id)"
+              @change="state.settings.forgeServers = toggle(state.settings.forgeServers, server.id, ($event.target as HTMLInputElement).checked)"
+            />
+            {{ server.name }}
+          </label>
+        </div>
+      </template>
+
+      <h2>Sentry</h2>
+      <label class="line"><input v-model="state.settings.sentryEnabled" type="checkbox" /> Watch Sentry errors</label>
+      <template v-if="state.settings.sentryEnabled">
+        <div class="block">
+          Auth token
+          <span class="hint">{{ state.tokens[SENTRY_TOKEN_KEY] ? 'Saved in Keychain' : 'Needs the event:read scope' }}</span>
+          <div class="line">
+            <input v-model="state.tokenInput[SENTRY_TOKEN_KEY]" type="password" placeholder="Paste a new token" autocomplete="off" />
+            <button @click="saveToken(SENTRY_TOKEN_KEY)">Save token</button>
+            <button v-if="state.tokens[SENTRY_TOKEN_KEY]" @click="forgetToken(SENTRY_TOKEN_KEY)">Remove</button>
+          </div>
+        </div>
+        <label class="block">
+          Organization slug
+          <input v-model.trim="state.settings.sentryOrg" type="text" />
+        </label>
+        <label class="block">
+          Projects <span class="hint">comma separated slugs; empty means all</span>
+          <input v-model.lazy="sentryProjects" type="text" />
+        </label>
+      </template>
 
       <h2>Display</h2>
       <label v-for="kind in KIND_ORDER" :key="kind" class="line">
@@ -169,6 +300,8 @@ h2 {
 }
 
 input[type='text'],
+input[type='password'],
+select,
 textarea {
   font: inherit;
   padding: 4px 6px;
