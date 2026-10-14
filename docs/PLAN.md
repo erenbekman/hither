@@ -158,6 +158,15 @@ Agent PR'ları: yazarı bilinen agent hesaplarından biri olan ya da `claude/` g
 
 **Güvenlik:** PR başlığı, log ve hata metni asla shell komutuna gömülmez. Prompt yalnızca kimlikleri (repo, PR numarası, Sentry issue id) taşır, içeriği Claude kendisi `gh` ve API ile okur. Şablonlar "push etme, önce planı göster" satırıyla başlar.
 
+**Uygulandı (M4):**
+- Kurallar saf TS'te (`core/suggestions.ts`); kartlar panelde zaten olan sinyallerden üretilir, ek API isteği yoktur. Deploy–hata korelasyonu Forge sitesi ↔ Sentry projesi eşlemesiyle yapılır (Settings → Sentry).
+- Şablonlar `~/Library/Application Support/dev.hither.app/templates/*.md` dosyalarıdır; ilk açılışta varsayılanlar yazılır, sonra kullanıcının düzenlemesi korunur. `renderTemplate` yalnızca kimlik biçimli değerleri (`[\w./#:@,+-]+`) kabul eder; başlık ya da log gibi serbest metin prompt'a giremez.
+- Başlatma: Rust prompt'u `0600` geçici dosyaya, başlatıcıyı `0700` `.command` dosyasına yazar ve `open -a iTerm` ile açar. Script klasöre `cd` eder, prompt'u dosyadan okur, iki dosyayı da siler ve `claude`'u (zsh fonksiyonları atlanarak `~/.local/bin/claude`) interaktif, varsayılan izin modunda başlatır. Testte `$(rm -rf ~)` içeren prompt'un kabukta çalışmadan harfi harfine iletildiği doğrulanır.
+- Forge deploy logu Hither tarafından çekilir, ayrı bir `0600` dosyaya yazılır; prompt'a yalnızca dosya yolu girer.
+- `claude -p` yalnız okuma araçlarıyla çalışır: `Read`, `Grep`, `Glob`, `Bash(gh pr view:*)`, `Bash(gh pr diff:*)`, `Bash(gh run view:*)`; 2 dakika zaman aşımı. Sonuç kart başına `suggestions.json`'da önbelleklenir.
+- Repo ↔ klasör eşlemesi hook `cwd`'sinden `git rev-parse --show-toplevel` ve `git remote get-url origin` ile öğrenilir; elle girilen yol da aynı kontrolden geçer (remote repo ile eşleşmezse reddedilir).
+- Kapı ölçümü: kart aksiyonları `suggestions.json`'da tarihleriyle tutulur; Suggestions sekmesinin altında son 7 günün sayısı görünür.
+
 ## Yol haritası
 
 Toplam tahmini 5–7 hafta. Bir aşama bitmeden ve kapısı geçilmeden sonrakine geçilmez.
