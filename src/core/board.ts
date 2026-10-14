@@ -70,6 +70,7 @@ export function createBoard(state: BoardState, deps: BoardDeps) {
   const blockedUntil = new Map<string, string>()
   let saveProblem: AppError | undefined
   let lastAttempt = 0
+  let queued: Set<string> | 'all' | undefined
 
   function updateUnseen() {
     const shown = LANES.flatMap((lane) => state.lanes[lane].flatMap((section) => section.signals))
@@ -127,14 +128,15 @@ export function createBoard(state: BoardState, deps: BoardDeps) {
     }
   }
 
-  async function poll() {
+  async function poll(only?: string[]) {
     const sources = deps.sources()
     const active = new Set(sources.map((source) => source.id))
     for (const map of [signals, problems, notices, blockedUntil]) {
       for (const id of map.keys()) if (!active.has(id)) map.delete(id)
     }
 
-    const outcomes = await Promise.all(sources.map(async (source) => [source.id, await pollOne(source)] as const))
+    const targets = only ? sources.filter((source) => only.includes(source.id)) : sources
+    const outcomes = await Promise.all(targets.map(async (source) => [source.id, await pollOne(source)] as const))
     const at = now()
     const settings = deps.settings()
 
@@ -164,20 +166,30 @@ export function createBoard(state: BoardState, deps: BoardDeps) {
     if (settings.notifications && fresh.length > 0) deps.notify(notificationsFor(fresh, deps.describe))
 
     state.lanes = lanes
-    if (outcomes.some(([, ok]) => ok)) state.lastRefresh = at.toISOString()
+    if (!only && outcomes.some(([, ok]) => ok)) state.lastRefresh = at.toISOString()
     publishStatus()
     updateUnseen()
   }
 
-  async function refresh(): Promise<void> {
-    if (!gate.begin()) return
-    lastAttempt = now().getTime()
-    state.refreshing = true
+  async function refresh(only?: string[]): Promise<void> {
+    if (!gate.begin()) {
+      if (!only || queued === 'all') queued = 'all'
+      else queued = new Set([...(queued ?? []), ...only])
+      return
+    }
+    if (!only) {
+      lastAttempt = now().getTime()
+      state.refreshing = true
+    }
     try {
-      await poll()
+      await poll(only)
     } finally {
-      state.refreshing = false
-      if (gate.finish()) await refresh()
+      if (!only) state.refreshing = false
+      if (gate.finish()) {
+        const next = queued
+        queued = undefined
+        await refresh(next === 'all' || next === undefined ? undefined : [...next])
+      }
     }
   }
 

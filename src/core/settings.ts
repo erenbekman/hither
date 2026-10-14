@@ -16,6 +16,8 @@ export interface Settings {
   sentryEnabled: boolean
   sentryOrg: string
   sentryProjects: string[]
+  agentLogins: string[]
+  agentBranchPrefixes: string[]
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -36,6 +38,8 @@ export const DEFAULT_SETTINGS: Settings = {
   sentryEnabled: false,
   sentryOrg: '',
   sentryProjects: [],
+  agentLogins: ['claude', 'copilot-swe-agent', 'chatgpt-codex-connector', 'devin-ai-integration', 'google-labs-jules', 'cursor'],
+  agentBranchPrefixes: ['claude/', 'copilot/', 'codex/'],
 }
 
 const isStringList = (value: unknown): value is string[] =>
@@ -67,5 +71,7 @@ export function normalizeSettings(raw: Record<string, unknown>): Settings {
     sentryEnabled: pick('sentryEnabled', isBool),
     sentryOrg: pick('sentryOrg', isText).trim(),
     sentryProjects: pick('sentryProjects', isStringList),
+    agentLogins: pick('agentLogins', isStringList),
+    agentBranchPrefixes: pick('agentBranchPrefixes', isStringList).filter((prefix) => prefix.length > 0),
   }
 }

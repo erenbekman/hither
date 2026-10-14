@@ -227,4 +227,37 @@ describe('createBoard', () => {
     ])
     expect(state.lanes.incoming).toHaveLength(1)
   })
+
+  it('can recompute one push source without asking the others', async () => {
+    const github = fakeSource('github', [ok([signal(1)])])
+    const agents = fakeSource('claude-code', [ok([]), ok([])])
+    const { state, board } = setup([github, agents])
+    await board.refresh()
+    const lastRefresh = state.lastRefresh
+    await board.refresh(['claude-code'])
+    expect(github.poll).toHaveBeenCalledTimes(1)
+    expect(agents.poll).toHaveBeenCalledTimes(2)
+    expect(state.lanes.incoming[0].signals).toHaveLength(1)
+    expect(state.lastRefresh).toBe(lastRefresh)
+    expect(state.refreshing).toBe(false)
+  })
+
+  it('replays only the push source when that was all that was queued', async () => {
+    let release!: () => void
+    const blocked = new Promise<void>((resolve) => (release = resolve))
+    const github = fakeSource('github', [])
+    github.poll.mockImplementationOnce(async () => {
+      await blocked
+      return ok([])
+    })
+    const agents = fakeSource('claude-code', [])
+    const { board } = setup([github, agents])
+    const first = board.refresh()
+    void board.refresh(['claude-code'])
+    void board.refresh(['claude-code'])
+    release()
+    await first
+    expect(github.poll).toHaveBeenCalledTimes(1)
+    expect(agents.poll).toHaveBeenCalledTimes(2)
+  })
 })
