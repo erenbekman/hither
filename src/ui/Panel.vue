@@ -4,6 +4,7 @@ import { ago } from '../core/format'
 import type { Lane } from '../core/types'
 import { openSettings } from '../native'
 import { startBoard } from './board-runtime'
+import { DEMO } from './demo-mode'
 import Banner from './components/Banner.vue'
 import Mark from './components/Mark.vue'
 import Segmented, { type SegmentItem } from './components/Segmented.vue'
@@ -23,7 +24,7 @@ const EMPTY: Record<Lane, string> = {
 const view = reactive<{ tab: Tab }>({ tab: 'incoming' })
 const board = startBoard()
 const updates = startUpdates({ periodic: true })
-const suggestions = startSuggestions({ board: board.state, settings: board.settings, siteHosts: board.siteHosts })
+const suggestions = startSuggestions({ board: board.state, settings: board.settings, siteHosts: board.siteHosts, ephemeral: DEMO })
 const now = ref(new Date())
 let ticker: ReturnType<typeof setInterval> | undefined
 onMounted(() => (ticker = setInterval(() => (now.value = new Date()), 30_000)))

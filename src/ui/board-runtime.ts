@@ -96,6 +96,27 @@ export function startBoard() {
   }
 
   async function boot() {
+    if (import.meta.env.DEV && import.meta.env.VITE_HITHER_DEMO === '1') {
+      const demo = await import('../demo')
+      settings = demo.DEMO_SETTINGS
+      hooks.status = 'installed'
+      board = createBoard(state, {
+        sources: demo.demoSources,
+        sourceLanes,
+        seen: new SeenStore(),
+        saveSeen: async () => {},
+        notify: () => {},
+        setBadge: (count) => void setBadge(count),
+        settings: () => settings,
+        order: LANE_ORDER,
+        isLoud,
+        ambient: isAmbient,
+        describe,
+        recovery: CI_RECOVERY,
+      })
+      await board.refresh()
+      return
+    }
     const [settingsStore, seenStore, agentStore] = await Promise.all([
       openSettingsStore(),
       load('seen.json', { defaults: {}, autoSave: false }),

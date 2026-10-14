@@ -45,7 +45,7 @@ const restore = (raw: unknown): Stored => {
   }
 }
 
-export function startSuggestions(deps: { board: BoardState; settings: () => Settings; siteHosts: () => string[] }) {
+export function startSuggestions(deps: { board: BoardState; settings: () => Settings; siteHosts: () => string[]; ephemeral?: boolean }) {
   const state = reactive<SuggestionsState>({
     cards: [],
     folders: {},
@@ -164,11 +164,13 @@ export function startSuggestions(deps: { board: BoardState; settings: () => Sett
   }
 
   async function boot() {
-    const store = await load('suggestions.json', { defaults: {}, autoSave: false })
-    stored = restore(await store.get('state'))
-    persist = async () => {
-      await store.set('state', stored)
-      await store.save()
+    if (!deps.ephemeral) {
+      const store = await load('suggestions.json', { defaults: {}, autoSave: false })
+      stored = restore(await store.get('state'))
+      persist = async () => {
+        await store.set('state', stored)
+        await store.save()
+      }
     }
     state.folders = { ...stored.folders }
     state.summaries = { ...stored.summaries }
