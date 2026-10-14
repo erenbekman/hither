@@ -98,4 +98,17 @@ describe('parseResponse', () => {
     expect(item.authorAvatar).toBe('https://avatars.githubusercontent.com/u/1?s=48')
     expect(parseResponse(response, RESET).searches.prs[0].authorAvatar).toBeUndefined()
   })
+
+  it('reads the profile, and treats missing counts as zero', () => {
+    expect(parseResponse(response, RESET).profile).toEqual({
+      name: 'Bob Builder',
+      avatar: 'https://avatars.githubusercontent.com/u/1?s=64',
+      followers: 42,
+      stars: 37,
+      starsAreExact: false,
+    })
+    const bare = withData({ viewer: { login: 'a' } })
+    expect(parseResponse(bare, RESET).profile).toEqual({ followers: 0, stars: 0, starsAreExact: true })
+  })
 })
+

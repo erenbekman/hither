@@ -12,6 +12,8 @@ describe('githubSource', () => {
     const result = await source.poll(ctx)
     expect(result.account).toBe('bob')
     expect(result.retryAt).toBeUndefined()
+    expect(result.profile).toMatchObject({ name: 'Bob Builder', followers: 42 })
+    expect(result.quota).toEqual({ limit: 5000, remaining: 4990, resetAt: '2026-10-14T13:00:00Z' })
     const counts = Object.fromEntries(
       ['pr', 'issue', 'review-requested', 'changes-requested', 'my-pr'].map((kind) => [kind, result.signals.filter((s) => s.kind === kind).length]),
     )

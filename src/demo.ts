@@ -7,11 +7,12 @@ export const DEMO_SETTINGS: Settings = {
   sentryEnabled: true,
   sentryOrg: 'acme',
   sentryProjectForSite: { 'shop.acme.app': 'shop-api' },
+  quotaVisibility: 'always',
 }
 
 const minutesAgo = (now: Date, minutes: number) => new Date(now.getTime() - minutes * 60_000).toISOString()
 
-function github(now: Date): Signal[] {
+function githubSignals(now: Date): Signal[] {
   const pr = (number: number, kind: string, title: string, actor: string, minutes: number, extra: Partial<Signal> = {}): Signal => ({
     id: `https://github.com/acme/api/pull/${number}`,
     source: 'github',
@@ -152,12 +153,17 @@ function agents(now: Date): Signal[] {
   ]
 }
 
-const source = (id: string, signals: (now: Date) => Signal[], account?: string): Source => ({
+const source = (id: string, signals: (now: Date) => Signal[], extra: Partial<PollResult> = {}): Source => ({
   id,
   interval: 0,
-  poll: async (): Promise<PollResult> => ({ signals: signals(new Date()), notices: [], account }),
+  poll: async (): Promise<PollResult> => ({ signals: signals(new Date()), notices: [], ...extra }),
 })
 
 export function demoSources(): Source[] {
-  return [source('github', github, 'you'), source('forge', forge), source('sentry', sentry), source('claude-code', agents)]
+  const github = source('github', githubSignals, {
+    account: 'you',
+    profile: { followers: 128, stars: 1240, starsAreExact: true },
+    quota: { limit: 5000, remaining: 4870, resetAt: new Date(Date.now() + 40 * 60_000).toISOString() },
+  })
+  return [github, source('forge', forge), source('sentry', sentry), source('claude-code', agents)]
 }

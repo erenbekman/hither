@@ -180,6 +180,8 @@ export function githubSource(deps: {
         signals,
         notices,
         account: snapshot.login,
+        profile: snapshot.profile,
+        quota: { limit: snapshot.rateLimit.limit, remaining: snapshot.rateLimit.remaining, resetAt: snapshot.rateLimit.resetAt },
         retryAt: snapshot.rateLimit.remaining === 0 ? snapshot.rateLimit.resetAt : undefined,
       }
     },

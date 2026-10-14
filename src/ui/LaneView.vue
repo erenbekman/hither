@@ -16,6 +16,7 @@ const props = defineProps<{
   now: Date
   open: (id: string, url: string | undefined) => void
   markSeen: (ids: string[]) => void
+  showMenu: (signals: Signal[]) => void
   empty: string
 }>()
 
@@ -31,13 +32,23 @@ const avatarOf = (signal: Signal) =>
   signal.source === 'github' && signal.actor
     ? { login: signal.actor, url: typeof signal.meta?.avatar === 'string' ? signal.meta.avatar : undefined }
     : undefined
+const staleAge = (at: string) => {
+  const age = ago(at, props.now)
+  return age === 'now' ? 'a moment ago' : `${age} ago`
+}
 const strongest = (signals: Signal[]): Signal['severity'] =>
   signals.some((s) => s.severity === 'critical') ? 'critical' : signals.some((s) => s.severity === 'attention') ? 'attention' : 'info'
 </script>
 
 <template>
   <div class="lane">
-    <Banner v-for="(problem, i) in problems" :key="`p${i}`" tone="error" :error="problem.error" />
+    <Banner
+      v-for="(problem, i) in problems"
+      :key="`p${i}`"
+      tone="error"
+      :error="problem.error"
+      :detail="problem.staleSince ? `Showing what was there ${staleAge(problem.staleSince)}` : undefined"
+    />
     <Banner v-for="notice in notices" :key="notice.source + notice.text" tone="warning" :text="notice.text" />
 
     <div class="list">
@@ -59,6 +70,7 @@ const strongest = (signals: Signal[]): Signal['severity'] =>
             :unseen="!!state.unseen[row.signal.id]"
             :avatar="avatarOf(row.signal)"
             @activate="open(row.signal.id, row.signal.url)"
+            @menu="showMenu([row.signal])"
           />
           <template v-else>
             <SignalRow
@@ -70,6 +82,7 @@ const strongest = (signals: Signal[]): Signal['severity'] =>
               :severity="strongest(unseenIn(row.signals))"
               :unseen="unseenIn(row.signals).length > 0"
               @activate="expanded[groupKey(section, row.project)] = !expanded[groupKey(section, row.project)]"
+              @menu="showMenu(row.signals)"
             />
             <template v-if="expanded[groupKey(section, row.project)]">
               <SignalRow
@@ -83,6 +96,7 @@ const strongest = (signals: Signal[]): Signal['severity'] =>
                 :unseen="!!state.unseen[signal.id]"
                 :avatar="avatarOf(signal)"
                 @activate="open(signal.id, signal.url)"
+                @menu="showMenu([signal])"
               />
             </template>
           </template>

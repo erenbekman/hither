@@ -2,9 +2,11 @@
 import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
 import { ago } from '../core/format'
 import type { Lane } from '../core/types'
-import { openSettings } from '../native'
+import { openSettings, openUrl } from '../native'
+import { isQuotaLow, showsQuota } from '../sources/github/account'
 import { startBoard } from './board-runtime'
 import { DEMO } from './demo-mode'
+import Avatar from './components/Avatar.vue'
 import Banner from './components/Banner.vue'
 import Mark from './components/Mark.vue'
 import Segmented, { type SegmentItem } from './components/Segmented.vue'
@@ -83,6 +85,11 @@ const tabs = computed<SegmentItem[]>(() => [
   },
 ])
 
+const compact = new Intl.NumberFormat('en', { notation: 'compact' })
+const profile = computed(() => board.state.profile)
+const quota = computed(() => (showsQuota(board.settings().quotaVisibility, board.state.quota) ? board.state.quota : undefined))
+const clock = (at: string) => new Date(at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+
 const showHookBanner = computed(() => view.tab === 'agents' && board.hooks.status !== undefined && board.hooks.status !== 'installed')
 </script>
 
@@ -93,9 +100,23 @@ const showHookBanner = computed(() => view.tab === 'agents' && board.hooks.statu
     </div>
 
     <header class="account">
-      <Mark />
-      <span v-if="board.state.account" class="name">{{ board.state.account }}</span>
-      <span v-else class="muted">Connecting…</span>
+      <template v-if="board.state.account">
+        <Avatar :login="board.state.account" :url="profile?.avatar" :size="18" />
+        <button class="name" :title="`Open ${board.state.account} on GitHub`" @click="openUrl(`https://github.com/${board.state.account}`)">
+          {{ board.state.account }}
+        </button>
+        <span
+          v-if="profile"
+          class="muted num"
+          :title="`${profile.stars}${profile.starsAreExact ? '' : '+'} stars on your public repositories, ${profile.followers} followers`"
+        >
+          ★ {{ compact.format(profile.stars) }}{{ profile.starsAreExact ? '' : '+' }} · {{ compact.format(profile.followers) }} followers
+        </span>
+      </template>
+      <template v-else>
+        <Mark />
+        <span class="muted">Connecting…</span>
+      </template>
       <span v-if="board.state.lastRefresh" class="muted num">· {{ ago(board.state.lastRefresh, now) }}</span>
       <span class="spacer" />
       <button
@@ -146,6 +167,7 @@ const showHookBanner = computed(() => view.tab === 'agents' && board.hooks.statu
       :now="now"
       :open="board.open"
       :mark-seen="board.markSeen"
+      :show-menu="board.showMenu"
       :empty="EMPTY[view.tab]"
     />
     <SuggestionsView
@@ -156,6 +178,10 @@ const showHookBanner = computed(() => view.tab === 'agents' && board.hooks.statu
       :dismiss="suggestions.dismiss"
       :set-folder="suggestions.setFolder"
     />
+
+    <footer v-if="quota" class="quota num" :class="{ low: isQuotaLow(quota) }">
+      GitHub API: {{ quota.remaining.toLocaleString('en') }} of {{ quota.limit.toLocaleString('en') }} left · resets {{ clock(quota.resetAt) }}
+    </footer>
   </main>
 </template>
 
@@ -181,13 +207,36 @@ const showHookBanner = computed(() => view.tab === 'agents' && board.hooks.statu
 }
 
 .name {
+  overflow: hidden;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--fg);
   font-size: 12.5px;
   font-weight: 600;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.name:hover {
+  text-decoration: underline;
+}
+
+.quota {
+  padding: 5px 12px 6px;
+  border-top: 0.5px solid var(--separator);
+  color: var(--fg-3);
+  font-size: 11px;
+}
+
+.quota.low {
+  color: var(--orange);
 }
 
 .muted {
   color: var(--fg-3);
   font-size: 11.5px;
+  white-space: nowrap;
 }
 
 .spacer {

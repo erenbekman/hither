@@ -5,6 +5,7 @@ export const secretGet = (key: string) => invoke<string | null>('secret_get', { 
 export const secretSet = (key: string, value: string) => invoke<void>('secret_set', { key, value })
 export const secretDelete = (key: string) => invoke<void>('secret_delete', { key })
 export const openUrl = (url: string) => invoke<void>('open_url', { url })
+export const copyText = (text: string) => invoke<void>('copy_text', { text })
 export const setBadge = (count: number) => invoke<void>('set_badge', { count })
 export const revealPanel = () => invoke<void>('reveal_panel')
 export const startHookListener = (token: string) => invoke<number>('start_hook_listener', { token })
@@ -15,10 +16,10 @@ export interface GitRepo {
   remote: string
 }
 export const gitRepo = (path: string) => invoke<GitRepo | null>('git_repo', { path })
-export const launchClaude = (folder: string, prompt: string, attachment?: string) =>
-  invoke<void>('launch_claude', { folder, prompt, attachment: attachment ?? null })
+export const launchClaude = (folder: string, prompt: string, attachment: string | undefined, terminal: string) =>
+  invoke<void>('launch_claude', { folder, prompt, attachment: attachment ?? null, terminal })
 export const claudePrint = (folder: string | undefined, prompt: string) => invoke<string>('claude_print', { folder: folder ?? null, prompt })
-export const focusTerminal = () => invoke<void>('focus_terminal')
+export const focusTerminal = (terminal: string) => invoke<void>('focus_terminal', { terminal })
 export const syncTemplates = (defaults: Record<string, string>) => invoke<Record<string, string>>('sync_templates', { defaults })
 export const openTemplates = () => invoke<void>('open_templates')
 export const restartApp = () => invoke<void>('restart_app')

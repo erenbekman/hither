@@ -47,6 +47,13 @@ describe('applyHookEvent', () => {
     expect(play([0, event('StopFailure', { error: 'rate_limit' })]).s1).toMatchObject({ state: 'failed', message: 'rate_limit' })
   })
 
+  it('remembers the terminal the session runs in', () => {
+    const s = play([0, event('SessionStart', { terminal: 'iTerm.app' })], [2, event('Stop', { terminal: '' })]).s1
+    expect(s.terminal).toBe('iTerm')
+    expect(play([0, event('SessionStart', { terminal: 'vscode' })]).s1.terminal).toBeUndefined()
+    expect(play([0, event('SessionStart', { terminal: '__proto__' })]).s1.terminal).toBeUndefined()
+  })
+
   it('drops the session when it ends', () => {
     expect(play([0, event('SessionStart')], [1, event('SessionEnd', { reason: 'prompt_input_exit' })])).toEqual({})
   })
@@ -88,6 +95,11 @@ describe('sessionSignals', () => {
         meta: { cwd: '/Users/eren/projects/hither', sessionTitle: 'Fix tray', state: 'waiting' },
       },
     ])
+  })
+
+  it('carries the terminal on the signal', () => {
+    const [signal] = sessionSignals(play([0, event('SessionStart', { terminal: 'ghostty' })]), at(1))
+    expect(signal.meta?.terminal).toBe('Ghostty')
   })
 
   it('falls back to the state when Claude said nothing, and spells out errors', () => {

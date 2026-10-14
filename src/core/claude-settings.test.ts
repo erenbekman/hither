@@ -42,7 +42,17 @@ describe('addHooks', () => {
     expect(Object.keys(hooks).sort()).toEqual([...new Set([...HOOK_EVENTS, 'PreToolUse'])].sort())
     expect(hooks.Stop).toEqual([
       { hooks: [{ type: 'command', command: 'say done' }] },
-      { hooks: [{ type: 'http', url, timeout: 5, headers: { Authorization: 'Bearer tok' } }] },
+      {
+        hooks: [
+          {
+            type: 'http',
+            url,
+            timeout: 5,
+            headers: { Authorization: 'Bearer tok', 'X-Hither-Terminal': '$TERM_PROGRAM' },
+            allowedEnvVars: ['TERM_PROGRAM'],
+          },
+        ],
+      },
     ])
     expect(hooks.PreToolUse).toEqual(userSettings.hooks.PreToolUse)
   })
@@ -93,6 +103,18 @@ describe('hookStatus', () => {
     const partial = structuredClone(installed) as { hooks: Record<string, unknown> }
     delete partial.hooks.SessionEnd
     expect(hookStatus(partial, url, 'tok')).toBe('outdated')
+  })
+
+  it('asks for an update when the hooks do not report the terminal yet', () => {
+    const installed = addHooks(userSettings, url, 'tok') as { hooks: Record<string, { hooks: Record<string, unknown>[] }[]> }
+    for (const groups of Object.values(installed.hooks)) {
+      for (const hook of groups.flatMap((group) => group.hooks)) {
+        if (hook.type !== 'http') continue
+        hook.headers = { Authorization: 'Bearer tok' }
+        delete hook.allowedEnvVars
+      }
+    }
+    expect(hookStatus(installed, url, 'tok')).toBe('outdated')
   })
 })
 

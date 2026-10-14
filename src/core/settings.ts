@@ -1,3 +1,13 @@
+import type { Lane } from './types'
+
+export const TERMINALS = ['iTerm', 'Terminal', 'Ghostty', 'Warp'] as const
+export type Terminal = (typeof TERMINALS)[number]
+const TERM_PROGRAMS: Record<string, Terminal> = { 'iTerm.app': 'iTerm', Apple_Terminal: 'Terminal', ghostty: 'Ghostty', WarpTerminal: 'Warp' }
+export const terminalFor = (termProgram: string | null | undefined): Terminal | undefined =>
+  termProgram && Object.hasOwn(TERM_PROGRAMS, termProgram) ? TERM_PROGRAMS[termProgram] : undefined
+export const QUOTA_VISIBILITY = ['never', 'low', 'always'] as const
+export type QuotaVisibility = (typeof QUOTA_VISIBILITY)[number]
+
 export interface Settings {
   refreshMinutes: number
   notifications: boolean
@@ -19,6 +29,12 @@ export interface Settings {
   agentLogins: string[]
   agentBranchPrefixes: string[]
   sentryProjectForSite: Record<string, string>
+  terminal: Terminal
+  notificationLanes: Lane[]
+  quietHours: boolean
+  quietStart: string
+  quietEnd: string
+  quotaVisibility: QuotaVisibility
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -42,6 +58,12 @@ export const DEFAULT_SETTINGS: Settings = {
   agentLogins: ['claude', 'copilot-swe-agent', 'chatgpt-codex-connector', 'devin-ai-integration', 'google-labs-jules', 'cursor'],
   agentBranchPrefixes: ['claude/', 'copilot/', 'codex/'],
   sentryProjectForSite: {},
+  terminal: 'iTerm',
+  notificationLanes: ['incoming', 'outgoing', 'agents'],
+  quietHours: false,
+  quietStart: '22:00',
+  quietEnd: '08:00',
+  quotaVisibility: 'low',
 }
 
 const isStringRecord = (value: unknown): value is Record<string, string> =>
@@ -49,6 +71,10 @@ const isStringRecord = (value: unknown): value is Record<string, string> =>
 
 const isStringList = (value: unknown): value is string[] =>
   Array.isArray(value) && value.every((entry) => typeof entry === 'string')
+
+const LANES: Lane[] = ['incoming', 'outgoing', 'agents']
+const isLaneList = (value: unknown) => Array.isArray(value) && value.every((entry) => LANES.includes(entry))
+const isClockTime = (value: unknown) => typeof value === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(value)
 
 export function normalizeSettings(raw: Record<string, unknown>): Settings {
   const pick = <K extends keyof Settings>(key: K, valid: (value: unknown) => boolean): Settings[K] =>
@@ -79,5 +105,35 @@ export function normalizeSettings(raw: Record<string, unknown>): Settings {
     agentLogins: pick('agentLogins', isStringList),
     agentBranchPrefixes: pick('agentBranchPrefixes', isStringList).filter((prefix) => prefix.length > 0),
     sentryProjectForSite: pick('sentryProjectForSite', isStringRecord),
+    terminal: pick('terminal', (value) => TERMINALS.includes(value as Terminal)),
+    notificationLanes: pick('notificationLanes', isLaneList),
+    quietHours: pick('quietHours', isBool),
+    quietStart: pick('quietStart', isClockTime),
+    quietEnd: pick('quietEnd', isClockTime),
+    quotaVisibility: pick('quotaVisibility', (value) => QUOTA_VISIBILITY.includes(value as QuotaVisibility)),
+  }
+}
+
+export function resolveRepo(settings: Pick<Settings, 'organizations' | 'accounts'>, entry: string): string {
+  const name = entry.trim()
+  return name.includes('/') ? name : `${settings.organizations[0] ?? settings.accounts[0] ?? '@me'}/${name}`
+}
+
+export const sameRepo = (settings: Settings, entry: string, repo: string) => resolveRepo(settings, entry).toLowerCase() === repo.toLowerCase()
+
+export function isRepoWatched(settings: Settings, repo: string): boolean {
+  return settings.repoList.some((entry) => sameRepo(settings, entry, repo)) === settings.repoListIsAllowList
+}
+
+export function setRepoWatched(settings: Settings, repo: string, watched: boolean): string[] {
+  const listed = settings.repoListIsAllowList ? watched : !watched
+  if (!listed) return settings.repoList.filter((entry) => !sameRepo(settings, entry, repo))
+  return settings.repoList.some((entry) => sameRepo(settings, entry, repo)) ? settings.repoList : [...settings.repoList, repo]
+}
+
+export function muteRepo(settings: Settings, repo: string): Pick<Settings, 'repoList' | 'watchedRepos'> {
+  return {
+    repoList: setRepoWatched(settings, repo, false),
+    watchedRepos: settings.watchedRepos.filter((entry) => entry.toLowerCase() !== repo.toLowerCase()),
   }
 }

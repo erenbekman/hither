@@ -1,4 +1,5 @@
 import type { AppError } from '../../core/errors'
+import type { Profile } from '../../core/types'
 
 export const SEARCH_KEYS = ['prs', 'issues', 'review', 'changesRequested', 'myPullRequests'] as const
 export type SearchKey = (typeof SEARCH_KEYS)[number]
@@ -32,6 +33,7 @@ export interface Branch {
 
 export interface Snapshot {
   login: string
+  profile: Profile
   organizations: string[]
   searches: Record<SearchKey, Item[]>
   truncated: SearchKey[]
@@ -71,6 +73,17 @@ export function parseResponse(root: unknown, rateLimitResetAt: string, watched: 
     .map((node) => (isObject(node) ? node.login : undefined))
     .filter((org): org is string => typeof org === 'string')
 
+  const count = (value: unknown) => (isObject(value) && typeof value.totalCount === 'number' ? value.totalCount : 0)
+  const repositories = isObject(viewer.repositories) ? viewer.repositories : {}
+  const starNodes = Array.isArray(repositories.nodes) ? repositories.nodes : []
+  const profile: Profile = {
+    ...(typeof viewer.name === 'string' && viewer.name ? { name: viewer.name } : {}),
+    ...(typeof viewer.avatarUrl === 'string' ? { avatar: viewer.avatarUrl } : {}),
+    followers: count(viewer.followers),
+    stars: starNodes.reduce<number>((sum, node) => sum + (isObject(node) && typeof node.stargazerCount === 'number' ? node.stargazerCount : 0), 0),
+    starsAreExact: count(repositories) <= starNodes.length,
+  }
+
   const truncated: SearchKey[] = []
   const search = (key: SearchKey): Item[] => {
     const result = data[key]
@@ -103,6 +116,7 @@ export function parseResponse(root: unknown, rateLimitResetAt: string, watched: 
 
   return {
     login,
+    profile,
     organizations,
     searches,
     truncated,

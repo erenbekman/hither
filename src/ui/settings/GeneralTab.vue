@@ -3,10 +3,17 @@ import Banner from '../components/Banner.vue'
 import Group from '../components/Group.vue'
 import Toggle from '../components/Toggle.vue'
 import SettingRow from './SettingRow.vue'
-import { useSettings } from './context'
+import type { Lane } from '../../core/types'
+import { toggleIn, useSettings } from './context'
 
 const { state, save, updates, changeLaunchAtLogin } = useSettings()
 const INTERVALS = [1, 2, 5, 10, 15, 30]
+const LANES: { lane: Lane; label: string; hint: string }[] = [
+  { lane: 'incoming', label: 'Incoming', hint: 'Review requests, new pull requests and issues' },
+  { lane: 'outgoing', label: 'Outgoing', hint: 'Failed checks and deploys, Sentry issues' },
+  { lane: 'agents', label: 'Agents', hint: 'Claude sessions waiting for you' },
+]
+const clock = (event: Event) => (event.target as HTMLInputElement).value
 </script>
 
 <template>
@@ -27,8 +34,42 @@ const INTERVALS = [1, 2, 5, 10, 15, 30]
         @update:model-value="changeLaunchAtLogin($event)"
       />
     </SettingRow>
-    <SettingRow label="Notifications" hint="New items, failed checks and deploys, waiting Claude sessions">
+  </Group>
+
+  <Group label="Notifications">
+    <SettingRow label="Notifications" hint="The menu bar count shows new items either way">
       <Toggle label="Notifications" :model-value="state.settings.notifications" @update:model-value="save({ notifications: $event })" />
+    </SettingRow>
+    <SettingRow v-for="item in LANES" :key="item.lane" :label="item.label" :hint="item.hint">
+      <Toggle
+        :label="`${item.label} notifications`"
+        :model-value="state.settings.notificationLanes.includes(item.lane)"
+        :disabled="!state.settings.notifications"
+        @update:model-value="save({ notificationLanes: toggleIn(state.settings.notificationLanes, item.lane, $event) as Lane[] })"
+      />
+    </SettingRow>
+    <SettingRow label="Quiet hours" hint="No notifications in this window">
+      <input
+        type="time"
+        aria-label="Quiet hours start"
+        :value="state.settings.quietStart"
+        :disabled="!state.settings.notifications || !state.settings.quietHours"
+        @change="clock($event) && save({ quietStart: clock($event) })"
+      />
+      <span class="dash">–</span>
+      <input
+        type="time"
+        aria-label="Quiet hours end"
+        :value="state.settings.quietEnd"
+        :disabled="!state.settings.notifications || !state.settings.quietHours"
+        @change="clock($event) && save({ quietEnd: clock($event) })"
+      />
+      <Toggle
+        label="Quiet hours"
+        :model-value="state.settings.quietHours"
+        :disabled="!state.settings.notifications"
+        @update:model-value="save({ quietHours: $event })"
+      />
     </SettingRow>
   </Group>
 
@@ -55,6 +96,10 @@ const INTERVALS = [1, 2, 5, 10, 15, 30]
 </template>
 
 <style scoped>
+.dash {
+  color: var(--fg-3);
+}
+
 .flush {
   margin: -6px 0 14px;
 }

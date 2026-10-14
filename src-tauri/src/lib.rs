@@ -81,6 +81,16 @@ async fn open_url(url: String) -> Result<(), String> {
         .map(|_| ())
 }
 
+#[tauri::command]
+async fn copy_text(text: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || match process::run(Command::new("/usr/bin/pbcopy"), Some(text), Duration::from_secs(2)) {
+        Ok(output) if output.success => Ok(()),
+        _ => Err("could not copy to the clipboard".to_string()),
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 fn open_settings(app: &AppHandle) {
     if let Some(window) = app.get_webview_window(SETTINGS) {
         let _ = window.show();
@@ -149,6 +159,7 @@ pub fn run() {
             restart_app,
             open_settings_window,
             open_url,
+            copy_text,
             hooks::start_hook_listener,
             hooks::claude_settings_read,
             hooks::claude_settings_write,

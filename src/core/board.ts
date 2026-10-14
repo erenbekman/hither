@@ -1,16 +1,17 @@
 import { errorText, toAppError, type AppError } from './errors'
 import { buildSections, type Section } from './filtering'
-import { notificationsFor, type NotificationSpec } from './notifications'
+import { canNotify, notificationsFor, type NotificationSpec } from './notifications'
 import { deriveRecoveries, type RecoveryRule } from './recovery'
 import { RefreshGate } from './refresh-gate'
 import type { SeenState, SeenStore } from './seen-store'
 import type { Settings } from './settings'
-import type { Lane, Signal, Source } from './types'
+import type { Lane, Profile, Quota, Signal, Source } from './types'
 
 export interface Problem {
   source: string
   lanes: Lane[]
   error: AppError
+  staleSince?: string
 }
 
 export interface Notice {
@@ -28,6 +29,8 @@ export interface BoardState {
   badge: number
   laneBadges: Record<Lane, number>
   account?: string
+  profile?: Profile
+  quota?: Quota
   lastRefresh?: string
 }
 
@@ -69,6 +72,7 @@ export function createBoard(state: BoardState, deps: BoardDeps) {
   const problems = new Map<string, AppError>()
   const notices = new Map<string, string[]>()
   const blockedUntil = new Map<string, string>()
+  const succeededAt = new Map<string, string>()
   let saveProblem: AppError | undefined
   let lastAttempt = 0
   let queued: Set<string> | 'all' | undefined
@@ -91,7 +95,12 @@ export function createBoard(state: BoardState, deps: BoardDeps) {
   }
 
   function publishStatus() {
-    state.problems = [...problems].map(([source, error]) => ({ source, lanes: deps.sourceLanes(source), error }))
+    state.problems = [...problems].map(([source, error]) => ({
+      source,
+      lanes: deps.sourceLanes(source),
+      error,
+      ...(signals.has(source) && succeededAt.has(source) ? { staleSince: succeededAt.get(source) } : {}),
+    }))
     if (saveProblem) state.problems.push({ source: 'storage', lanes: LANES, error: saveProblem })
     state.notices = [...notices].flatMap(([source, texts]) =>
       texts.map((text) => ({ source, lanes: deps.sourceLanes(source), text })),
@@ -117,7 +126,10 @@ export function createBoard(state: BoardState, deps: BoardDeps) {
         deps.seen.switchAccount(result.account)
         state.account = result.account
       }
+      if (result.profile) state.profile = result.profile
+      if (result.quota) state.quota = result.quota
       signals.set(source.id, result.signals)
+      succeededAt.set(source.id, now().toISOString())
       problems.delete(source.id)
       const texts = [...result.notices]
       if (result.retryAt) {
@@ -137,7 +149,7 @@ export function createBoard(state: BoardState, deps: BoardDeps) {
   async function poll(only?: string[]) {
     const sources = deps.sources()
     const active = new Set(sources.map((source) => source.id))
-    for (const map of [signals, problems, notices, blockedUntil]) {
+    for (const map of [signals, problems, notices, blockedUntil, succeededAt]) {
       for (const id of map.keys()) if (!active.has(id)) map.delete(id)
     }
 
@@ -146,9 +158,11 @@ export function createBoard(state: BoardState, deps: BoardDeps) {
     const at = now()
     const settings = deps.settings()
 
-    const all = deriveRecoveries([...signals.values()].flat(), deps.seen, at, deps.recovery)
+    const returned = deriveRecoveries([...signals.values()].flat(), deps.seen, at, deps.recovery)
     deps.seen.recordReturned(new Set([...signals.values()].flat().map((signal) => signal.id)), at)
     deps.seen.prune(at)
+    deps.seen.wake(at)
+    const all = returned.filter((signal) => !deps.seen.isSnoozed(signal.id, at))
 
     const options = {
       hiddenKinds: settings.hiddenKinds,
@@ -169,7 +183,8 @@ export function createBoard(state: BoardState, deps: BoardDeps) {
     const fresh = deps.seen.unnotified(shown.filter((signal) => deps.isLoud(signal) && !quietSources.has(signal.source)))
     deps.seen.markNotified(shown.map((signal) => signal.id))
     await persist()
-    if (settings.notifications && fresh.length > 0) deps.notify(notificationsFor(fresh, deps.describe))
+    const audible = fresh.filter((signal) => canNotify(settings, signal.lane, at))
+    if (audible.length > 0) deps.notify(notificationsFor(audible, deps.describe))
 
     state.lanes = lanes
     if (!only && outcomes.some(([, ok]) => ok)) state.lastRefresh = at.toISOString()
@@ -203,6 +218,10 @@ export function createBoard(state: BoardState, deps: BoardDeps) {
     refresh,
     refreshIfOlderThan(ms: number): Promise<void> | undefined {
       if (now().getTime() - lastAttempt >= ms) return refresh()
+    },
+    async snooze(ids: string[], until: Date) {
+      deps.seen.snooze(ids, until)
+      await refresh([])
     },
     async markSeen(ids: string[]) {
       deps.seen.markSeen(ids, now())

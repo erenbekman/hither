@@ -13,7 +13,14 @@ export const emptySearch = { issueCount: 0, nodes: [] }
 
 export const response = {
   data: {
-    viewer: { login: 'bob', organizations: { nodes: [{ login: 'widgets' }] } },
+    viewer: {
+      login: 'bob',
+      name: 'Bob Builder',
+      avatarUrl: 'https://avatars.githubusercontent.com/u/1?s=64',
+      organizations: { nodes: [{ login: 'widgets' }] },
+      followers: { totalCount: 42 },
+      repositories: { totalCount: 101, nodes: [{ stargazerCount: 30 }, { stargazerCount: 7 }, {}] },
+    },
     prs: {
       issueCount: 3,
       nodes: [pr(11, 'carol'), pr(12, 'dependabot', 'Bot'), pr(13, 'dave', 'User', { isDraft: true })],

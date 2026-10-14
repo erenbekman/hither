@@ -1,4 +1,4 @@
-import type { Settings } from '../../core/settings'
+import { resolveRepo, type Settings } from '../../core/settings'
 
 export const MAX_QUERY_LENGTH = 4000
 const NEWEST_FIRST = 'sort:created-desc'
@@ -64,9 +64,5 @@ function fit(required: string[], exclusions: string[]): { query: string; dropped
 }
 
 function normalizedRepositories(settings: ScopeSettings): string[] {
-  const owner = settings.organizations[0] ?? settings.accounts[0] ?? '@me'
-  return settings.repoList
-    .map((entry) => entry.trim())
-    .filter((entry) => entry.length > 0)
-    .map((entry) => (entry.includes('/') ? entry : `${owner}/${entry}`))
+  return settings.repoList.filter((entry) => entry.trim().length > 0).map((entry) => resolveRepo(settings, entry))
 }

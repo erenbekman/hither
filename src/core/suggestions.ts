@@ -10,7 +10,7 @@ export type SuggestionAction =
   | { kind: 'claude'; template: string; repo: string; vars: Record<string, string>; log?: ForgeLogIds }
   | { kind: 'summarize'; template: string; repo: string; vars: Record<string, string> }
   | { kind: 'open'; url: string; label: string }
-  | { kind: 'focus-terminal' }
+  | { kind: 'focus-terminal'; terminal?: string }
 
 export interface Suggestion {
   id: string
@@ -181,7 +181,7 @@ function fromSignals(input: RuleInput): Suggestion[] {
           detail: s.title,
           at: s.at,
           remind: true,
-          actions: [{ kind: 'focus-terminal' }],
+          actions: [{ kind: 'focus-terminal', ...(typeof s.meta?.terminal === 'string' ? { terminal: s.meta.terminal } : {}) }],
         },
       ]
     }

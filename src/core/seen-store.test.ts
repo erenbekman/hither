@@ -148,3 +148,39 @@ describe('SeenStore notifications', () => {
     expect(store.unnotified([item(1)])).toHaveLength(1)
   })
 })
+
+describe('SeenStore snoozing', () => {
+  it('hides an item until the snooze ends, then makes it new again', () => {
+    const store = new SeenStore()
+    store.markSeen(['a'], start)
+    store.markNotified(['a'])
+    store.snooze(['a'], after(1))
+    expect(store.isSnoozed('a', start)).toBe(true)
+    expect(store.wake(after(0.5))).toEqual([])
+    expect(store.wake(after(1))).toEqual(['a'])
+    expect(store.isSnoozed('a', after(1))).toBe(false)
+    expect(store.isSeen('a')).toBe(false)
+    expect(store.unnotified([{ id: 'a' }])).toHaveLength(1)
+  })
+
+  it('survives a save and reload', () => {
+    const store = new SeenStore()
+    store.snooze(['a'], after(1))
+    expect(reload(store).isSnoozed('a', start)).toBe(true)
+  })
+
+  it('reads a file written before snoozing existed', () => {
+    const store = new SeenStore({ version: 1, bootstrappedSources: [], seen: { a: start.toISOString() }, notified: [], returned: {}, kinds: {} })
+    expect(store.isSeen('a')).toBe(true)
+    expect(store.isSnoozed('a', start)).toBe(false)
+  })
+
+  it('drops the snooze of an item that is pruned', () => {
+    const store = new SeenStore()
+    store.snooze(['a'], after(30))
+    store.recordReturned(['a'], start)
+    store.prune(after(15))
+    expect(store.isSnoozed('a', after(15))).toBe(false)
+  })
+})
+

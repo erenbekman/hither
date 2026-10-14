@@ -25,12 +25,19 @@ struct HookEvent {
     reason: Option<String>,
     source: Option<String>,
     session_title: Option<String>,
+    #[serde(skip_deserializing)]
+    terminal: Option<String>,
 }
 
 #[derive(Default)]
 pub struct Listener {
     token: Arc<Mutex<String>>,
     running: Mutex<bool>,
+}
+
+fn terminal_name(value: &str) -> Option<String> {
+    let value = value.trim();
+    (!value.is_empty() && value.len() <= 64 && value.chars().all(|c| c.is_ascii_alphanumeric() || "._-".contains(c))).then(|| value.to_string())
 }
 
 fn serve(server: Server, token: Arc<Mutex<String>>, app: AppHandle) {
@@ -48,7 +55,12 @@ fn serve(server: Server, token: Arc<Mutex<String>>, app: AppHandle) {
             let mut body = Vec::new();
             let _ = request.as_reader().take(MAX_BODY).read_to_end(&mut body);
             match serde_json::from_slice::<HookEvent>(&body) {
-                Ok(event) => {
+                Ok(mut event) => {
+                    event.terminal = request
+                        .headers()
+                        .iter()
+                        .find(|h| h.field.equiv("X-Hither-Terminal"))
+                        .and_then(|h| terminal_name(h.value.as_str()));
                     let _ = app.emit("agent-event", event);
                     200
                 }
@@ -124,6 +136,16 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("hither-test-{name}-{}", std::process::id()));
         let _ = fs::remove_dir_all(&dir);
         dir.join(".claude/settings.json")
+    }
+
+    #[test]
+    fn keeps_only_plain_terminal_names() {
+        assert_eq!(terminal_name(" iTerm.app "), Some("iTerm.app".to_string()));
+        assert_eq!(terminal_name("Apple_Terminal"), Some("Apple_Terminal".to_string()));
+        assert_eq!(terminal_name(""), None);
+        assert_eq!(terminal_name("$TERM_PROGRAM"), None);
+        assert_eq!(terminal_name("a b"), None);
+        assert_eq!(terminal_name(&"x".repeat(65)), None);
     }
 
     #[test]

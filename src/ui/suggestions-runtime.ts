@@ -4,6 +4,7 @@ import { fetch as httpFetch } from '@tauri-apps/plugin-http'
 import { load } from '@tauri-apps/plugin-store'
 import type { BoardState } from '../core/board'
 import { toAppError, type AppError } from '../core/errors'
+import { canNotify } from '../core/notifications'
 import { isOpenable } from '../core/openable'
 import { githubRepo } from '../core/repo'
 import type { HookEvent } from '../core/sessions'
@@ -74,7 +75,7 @@ export function startSuggestions(deps: { board: BoardState; settings: () => Sett
     state.cards = cards.filter((card) => !stored.dismissed.includes(card.id))
 
     const reminders = state.cards.filter((card) => card.remind && !stored.reminded.includes(card.id))
-    if (reminders.length > 0 && settings.notifications) {
+    if (reminders.length > 0 && canNotify(settings, 'agents', new Date())) {
       void notify(reminders.map((card) => ({ title: card.title, body: card.detail || 'Claude is waiting for you' })))
     }
     stored.reminded = [...stored.reminded.filter((id) => ids.has(id)), ...reminders.map((card) => card.id)]
@@ -121,7 +122,7 @@ export function startSuggestions(deps: { board: BoardState; settings: () => Sett
           await openUrl(action.url)
           break
         case 'focus-terminal':
-          await focusTerminal()
+          await focusTerminal(action.terminal ?? deps.settings().terminal)
           break
         case 'claude': {
           const folder = stored.folders[action.repo]
@@ -136,7 +137,7 @@ export function startSuggestions(deps: { board: BoardState; settings: () => Sett
             if (!token) throw { kind: 'service-not-configured', service: 'Forge', missing: 'add an API token' }
             attachment = await fetchDeploymentLog(token, deps.settings().forgeOrg, action.log, httpFetch)
           }
-          await launchClaude(folder, prompt, attachment)
+          await launchClaude(folder, prompt, attachment, deps.settings().terminal)
           break
         }
         case 'summarize': {

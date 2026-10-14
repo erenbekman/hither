@@ -20,7 +20,7 @@ export function document(watched: number): string {
       `w${i}: repository(owner: $w${i}o, name: $w${i}n) { nameWithOwner defaultBranchRef { name target { ... on Commit { oid url messageHeadline committedDate author { user { login } name } ${rollup} } } } }`,
   ).join('\n  ')
   return `query($prs: String!, $issues: String!, $review: String!, $changesRequested: String!, $myPullRequests: String!, $first: Int!${repoVars}) {
-  viewer { login organizations(first: 50) { nodes { login } } }
+  viewer { login name avatarUrl(size: 64) organizations(first: 50) { nodes { login } } followers { totalCount } repositories(first: 100, ownerAffiliations: OWNER, isFork: false, privacy: PUBLIC, orderBy: { field: STARGAZERS, direction: DESC }) { totalCount nodes { stargazerCount } } }
   ${prSearch('prs', true)}
   issues: search(query: $issues, type: ISSUE, first: $first) { issueCount nodes { ... on Issue { ${itemFields} } } }
   ${prSearch('review', false)}

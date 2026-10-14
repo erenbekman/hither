@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
+import { isRepoWatched, sameRepo, setRepoWatched, type QuotaVisibility } from '../../core/settings'
 import { KIND_ORDER, KIND_TITLES } from '../../sources/github'
 import Group from '../components/Group.vue'
 import Toggle from '../components/Toggle.vue'
@@ -11,6 +12,27 @@ const { state, save } = useSettings()
 const organizations = computed(() => [...new Set([...state.organizations, ...state.settings.organizations])])
 const text = (event: Event) => (event.target as HTMLInputElement | HTMLTextAreaElement).value
 const checked = (event: Event) => (event.target as HTMLInputElement).checked
+
+const QUOTA_CHOICES: { value: QuotaVisibility; label: string }[] = [
+  { value: 'never', label: 'Never' },
+  { value: 'low', label: 'When low' },
+  { value: 'always', label: 'Always' },
+]
+
+const repos = computed(() => {
+  const known = Object.keys(state.knownRepos)
+  const listed = state.settings.repoList.filter((entry) => !known.some((repo) => sameRepo(state.settings, entry, repo)))
+  return [...known, ...listed].sort((a, b) => (state.knownRepos[b] ?? 0) - (state.knownRepos[a] ?? 0) || a.localeCompare(b))
+})
+const newRepo = ref('')
+
+function addRepo() {
+  const repo = newRepo.value.trim()
+  if (!/^[\w.-]+\/[\w.-]+$/.test(repo)) return
+  state.knownRepos = { [repo]: 0, ...state.knownRepos }
+  void save({ repoList: setRepoWatched(state.settings, repo, state.settings.repoListIsAllowList) })
+  newRepo.value = ''
+}
 </script>
 
 <template>
@@ -29,21 +51,40 @@ const checked = (event: Event) => (event.target as HTMLInputElement).checked
       </label>
       <span v-if="organizations.length === 0" class="empty">No organizations</span>
     </SettingRow>
-    <SettingRow label="Repositories" hint="One per line, owner/name or name" stacked>
-      <textarea class="text-input" rows="3" :value="state.settings.repoList.join('\n')" @change="save({ repoList: lines(text($event)) })" />
-      <div class="radios">
-        <label class="check">
-          <input type="radio" :checked="!state.settings.repoListIsAllowList" @change="save({ repoListIsAllowList: false })" />
-          Hide these
-        </label>
-        <label class="check">
-          <input type="radio" :checked="state.settings.repoListIsAllowList" @change="save({ repoListIsAllowList: true })" />
-          Only these
+    <SettingRow label="Watch only checked repositories" :hint="state.settings.repoListIsAllowList ? 'Only checked repositories are watched' : 'Unchecked repositories are hidden'">
+      <Toggle
+        label="Watch only checked repositories"
+        :model-value="state.settings.repoListIsAllowList"
+        @update:model-value="save({ repoListIsAllowList: $event })"
+      />
+    </SettingRow>
+    <SettingRow label="Repositories" hint="Repositories appear here as Hither sees activity in them" stacked>
+      <div class="repos">
+        <label v-for="repo in repos" :key="repo" class="check">
+          <input
+            type="checkbox"
+            :checked="isRepoWatched(state.settings, repo)"
+            @change="save({ repoList: setRepoWatched(state.settings, repo, checked($event)) })"
+          />
+          <span class="repo">{{ repo }}</span>
+          <span v-if="state.knownRepos[repo]" class="count num">{{ state.knownRepos[repo] }}</span>
         </label>
       </div>
+      <form class="add" @submit.prevent="addRepo">
+        <input v-model="newRepo" class="text-input" type="text" placeholder="owner/name" aria-label="Repository to add" />
+        <button class="button" :disabled="!newRepo.includes('/')">Add</button>
+      </form>
     </SettingRow>
     <SettingRow label="Watch the main branch of" hint="owner/name, one per line; a red build shows under Outgoing" stacked>
       <textarea class="text-input" rows="2" :value="state.settings.watchedRepos.join('\n')" @change="save({ watchedRepos: lines(text($event)) })" />
+    </SettingRow>
+  </Group>
+
+  <Group label="API">
+    <SettingRow label="Show the remaining API quota" hint="At the bottom of the panel; low means under a quarter left">
+      <select :value="state.settings.quotaVisibility" @change="save({ quotaVisibility: text($event) as QuotaVisibility })">
+        <option v-for="choice in QUOTA_CHOICES" :key="choice.value" :value="choice.value">{{ choice.label }}</option>
+      </select>
     </SettingRow>
   </Group>
 
@@ -83,9 +124,33 @@ const checked = (event: Event) => (event.target as HTMLInputElement).checked
   font-size: 12.5px;
 }
 
-.radios {
+.repos {
   display: flex;
-  gap: 16px;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.repo {
+  flex: 1;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.count {
+  color: var(--fg-3);
+  font-size: 11.5px;
+}
+
+.add {
+  display: flex;
+  gap: 6px;
+}
+
+.add .text-input {
+  flex: 1;
 }
 
 .empty {

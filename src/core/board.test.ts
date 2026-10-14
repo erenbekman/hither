@@ -112,7 +112,9 @@ describe('createBoard', () => {
     const { state, board } = setup([fakeSource('github', [ok([signal(1)]), { kind: 'network', message: 'offline' }])])
     await board.refresh()
     await board.refresh()
-    expect(state.problems).toEqual([{ source: 'github', lanes: ['incoming', 'outgoing'], error: { kind: 'network', message: 'offline' } }])
+    expect(state.problems).toEqual([
+      { source: 'github', lanes: ['incoming', 'outgoing'], error: { kind: 'network', message: 'offline' }, staleSince: '2026-10-14T12:30:00.000Z' },
+    ])
     expect(state.lanes.incoming[0].signals).toHaveLength(1)
     expect(state.refreshing).toBe(false)
   })
@@ -277,4 +279,55 @@ describe('createBoard', () => {
     expect(state.unseen[session('agent-waiting', 'attention').id]).toBe(true)
     expect(notified(deps)).toHaveLength(1)
   })
+
+  it('hides a snoozed item without polling and brings it back as new when the snooze ends', async () => {
+    let now = new Date('2026-10-14T12:30:00Z')
+    const github = fakeSource('github', [ok([signal(1), signal(2)]), ok([signal(1), signal(2)]), ok([signal(1), signal(2)])])
+    const { state, deps, board } = setup([github], { now: () => now })
+    await board.refresh()
+    await board.markSeen([signal(1).id])
+    await board.snooze([signal(1).id], new Date('2026-10-15T12:30:00Z'))
+    expect(github.poll).toHaveBeenCalledTimes(1)
+    expect(state.lanes.incoming.flatMap((section) => section.signals).map((s) => s.id)).toEqual([signal(2).id])
+    await board.refresh()
+    expect(state.lanes.incoming.flatMap((section) => section.signals)).toHaveLength(1)
+    now = new Date('2026-10-15T12:31:00Z')
+    await board.refresh()
+    expect(state.unseen[signal(1).id]).toBe(true)
+    expect(notified(deps).map((spec) => spec.url)).toEqual([signal(1).url])
+  })
+
+  it('keeps the badge but sends nothing for lanes with notifications off or during quiet hours', async () => {
+    const steps = () => [ok([]), ok([signal(1), signal(2, 'ci-failed')])]
+    const lanesOff = setup([fakeSource('github', steps())], { settings: () => ({ ...DEFAULT_SETTINGS, notificationLanes: ['outgoing'] }) })
+    await lanesOff.board.refresh()
+    await lanesOff.board.refresh()
+    expect(notified(lanesOff.deps).map((spec) => spec.url)).toEqual([signal(2, 'ci-failed').url])
+
+    const night = setup([fakeSource('github', steps())], {
+      settings: () => ({ ...DEFAULT_SETTINGS, quietHours: true, quietStart: '00:00', quietEnd: '23:59' }),
+      now: () => new Date(2026, 9, 14, 12, 0),
+    })
+    await night.board.refresh()
+    await night.board.refresh()
+    expect(night.deps.notify).not.toHaveBeenCalled()
+    expect(night.state.badge).toBe(2)
+  })
+
+  it('keeps the profile and quota, and says how old the data is when a refresh fails', async () => {
+    let now = new Date('2026-10-14T12:30:00Z')
+    const profile = { followers: 3, stars: 2, starsAreExact: true }
+    const quota = { limit: 5000, remaining: 4000, resetAt: '2026-10-14T13:00:00Z' }
+    const github = fakeSource('github', [ok([signal(1)], { profile, quota }), { kind: 'network', message: 'offline' }])
+    const { state, board } = setup([github], { now: () => now })
+    await board.refresh()
+    expect(state.profile).toEqual(profile)
+    expect(state.quota).toEqual(quota)
+    expect(state.problems).toEqual([])
+    now = new Date('2026-10-14T12:35:00Z')
+    await board.refresh()
+    expect(state.problems[0].staleSince).toBe('2026-10-14T12:30:00.000Z')
+    expect(state.lanes.incoming.flatMap((section) => section.signals)).toHaveLength(1)
+  })
 })
+

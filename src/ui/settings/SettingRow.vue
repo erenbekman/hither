@@ -55,7 +55,8 @@ defineProps<{ label: string; hint?: string; stacked?: boolean }>()
 }
 
 .control :deep(select),
-.control :deep(input[type='number']) {
+.control :deep(input[type='number']),
+.control :deep(input[type='time']) {
   padding: 3px 6px;
   border: 0;
   border-radius: 6px;
@@ -65,6 +66,10 @@ defineProps<{ label: string; hint?: string; stacked?: boolean }>()
 
 .control :deep(input[type='number']) {
   width: 64px;
+}
+
+.control :deep(input:disabled) {
+  opacity: 0.5;
 }
 
 .control :deep(textarea) {

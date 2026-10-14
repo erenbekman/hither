@@ -23,7 +23,7 @@ function label(action: SuggestionAction): string {
     case 'summarize':
       return 'Summarize'
     case 'focus-terminal':
-      return 'Go to terminal'
+      return `Go to ${action.terminal ?? 'terminal'}`
     case 'open':
       return action.label
   }

@@ -1,28 +1,31 @@
-import { reactive } from 'vue'
+import { reactive, shallowRef, watch } from 'vue'
 import { listen } from '@tauri-apps/api/event'
+import { Menu } from '@tauri-apps/api/menu'
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { fetch as httpFetch } from '@tauri-apps/plugin-http'
 import { isPermissionGranted, onAction, requestPermission, sendNotification } from '@tauri-apps/plugin-notification'
-import { load } from '@tauri-apps/plugin-store'
+import { load, type Store } from '@tauri-apps/plugin-store'
 import { createBoard, initialBoardState } from '../core/board'
 import { errorText, toAppError, type AppError } from '../core/errors'
 import type { NotificationSpec } from '../core/notifications'
 import { isOpenable } from '../core/openable'
 import { SeenStore } from '../core/seen-store'
 import { applyHookEvent, pruneSessions, restoreSessions, type HookEvent, type Sessions } from '../core/sessions'
-import { DEFAULT_SETTINGS, type Settings } from '../core/settings'
-import type { Source } from '../core/types'
+import { DEFAULT_SETTINGS, isRepoWatched, muteRepo, type Settings } from '../core/settings'
+import type { Signal, Source } from '../core/types'
 import { describe, isAmbient, isLoud, LANE_ORDER, sourceLanes } from '../lanes'
-import { ghToken, openUrl, revealPanel, secretGet, setBadge, startHookListener } from '../native'
+import { copyText, focusTerminal, ghToken, openUrl, revealPanel, secretGet, setBadge, startHookListener } from '../native'
 import { AGENT_SOURCE_ID, claudeCodeSource } from '../sources/claude-code'
 import { CI_RECOVERY, githubSource } from '../sources/github'
+import { countRepos } from '../sources/github/account'
 import { FORGE_TOKEN_KEY, forgeSource } from '../sources/forge'
 import { SENTRY_TOKEN_KEY, sentrySource } from '../sources/sentry'
 import type { HookStatus } from '../core/claude-settings'
 import { hookToken, installHooks, readHookStatus } from './hooks'
-import { announceSettingsChanged, onSettingsChanged, openSettingsStore, readSettings } from './settings-store'
+import { announceSettingsChanged, onSettingsChanged, openSettingsStore, readSettings, REPOS_FILE, writeSettings } from './settings-store'
 
 const HEARTBEAT_MS = 30_000
+const SNOOZE_MS = 86_400_000
 
 export async function notify(specs: NotificationSpec[]) {
   let granted = await isPermissionGranted()
@@ -35,12 +38,13 @@ export async function notify(specs: NotificationSpec[]) {
 
 export function startBoard() {
   const state = reactive(initialBoardState())
-  let settings: Settings = DEFAULT_SETTINGS
+  const current = shallowRef<Settings>(DEFAULT_SETTINGS)
+  let settingsStore: Store | undefined
   let board: ReturnType<typeof createBoard> | undefined
 
-  const github = githubSource({ token: ghToken, settings: () => settings })
-  const forge = forgeSource({ token: () => secretGet(FORGE_TOKEN_KEY), settings: () => settings, fetchFn: httpFetch })
-  const sentry = sentrySource({ token: () => secretGet(SENTRY_TOKEN_KEY), settings: () => settings, fetchFn: httpFetch })
+  const github = githubSource({ token: ghToken, settings: () => current.value })
+  const forge = forgeSource({ token: () => secretGet(FORGE_TOKEN_KEY), settings: () => current.value, fetchFn: httpFetch })
+  const sentry = sentrySource({ token: () => secretGet(SENTRY_TOKEN_KEY), settings: () => current.value, fetchFn: httpFetch })
   let sessions: Sessions = {}
   let listenerProblem: AppError | undefined
   let hookNotices: string[] = []
@@ -50,8 +54,8 @@ export function startBoard() {
   const sources = (): Source[] => [
     github,
     agents,
-    ...(settings.forgeEnabled ? [forge] : []),
-    ...(settings.sentryEnabled ? [sentry] : []),
+    ...(current.value.forgeEnabled ? [forge] : []),
+    ...(current.value.sentryEnabled ? [sentry] : []),
   ]
 
   async function checkHooks() {
@@ -86,19 +90,55 @@ export function startBoard() {
       .filter((signal) => signal.source === 'forge' && signal.url)
       .map((signal) => new URL(signal.url!).hostname)
 
+  function report(source: string, error: unknown) {
+    state.problems = [...state.problems, { source, lanes: ['incoming', 'outgoing', 'agents'], error: toAppError(error) }]
+  }
+
   async function open(id: string, url: string | undefined) {
     try {
-      if (url && isOpenable(url, siteHosts())) await openUrl(url)
+      const signal = Object.values(state.lanes)
+        .flat()
+        .flatMap((section) => section.signals)
+        .find((s) => s.id === id)
+      if (signal?.source === AGENT_SOURCE_ID) await focusTerminal(typeof signal.meta?.terminal === 'string' ? signal.meta.terminal : current.value.terminal)
+      else if (url && isOpenable(url, siteHosts())) await openUrl(url)
       await board?.markSeen([id])
     } catch (error) {
-      state.problems = [...state.problems, { source: 'open', lanes: ['incoming', 'outgoing'], error: toAppError(error) }]
+      report('open', error)
     }
+  }
+
+  async function mute(repo: string) {
+    const patch = muteRepo(current.value, repo)
+    current.value = { ...current.value, ...patch }
+    if (settingsStore) await writeSettings(settingsStore, patch)
+    else await board?.refresh()
+  }
+
+  async function showMenu(targets: Signal[]) {
+    const [first] = targets
+    if (!first) return
+    const link = targets.length === 1 ? first.url : undefined
+    const repo =
+      targets.every((s) => s.source === 'github' && s.project === first.project) && isRepoWatched(current.value, first.project) ? first.project : undefined
+    const run = (task: () => Promise<unknown> | undefined) => () => void Promise.resolve(task()).catch((error) => report('menu', error))
+    const menu = await Menu.new({
+      items: [
+        ...(link ? [{ text: 'Copy Link', action: run(() => copyText(link)) }, { item: 'Separator' as const }] : []),
+        {
+          text: targets.length === 1 ? 'Snooze for a Day' : `Snooze ${targets.length} Items for a Day`,
+          action: run(() => board?.snooze(targets.map((s) => s.id), new Date(Date.now() + SNOOZE_MS))),
+        },
+        ...(repo ? [{ text: `Mute ${repo}`, action: run(() => mute(repo)) }] : []),
+      ],
+    })
+    await menu.popup()
   }
 
   async function boot() {
     if (import.meta.env.DEV && import.meta.env.VITE_HITHER_DEMO === '1') {
       const demo = await import('../demo')
-      settings = demo.DEMO_SETTINGS
+      current.value = demo.DEMO_SETTINGS
       hooks.status = 'installed'
       board = createBoard(state, {
         sources: demo.demoSources,
@@ -107,7 +147,7 @@ export function startBoard() {
         saveSeen: async () => {},
         notify: () => {},
         setBadge: (count) => void setBadge(count),
-        settings: () => settings,
+        settings: () => current.value,
         order: LANE_ORDER,
         isLoud,
         ambient: isAmbient,
@@ -117,12 +157,14 @@ export function startBoard() {
       await board.refresh()
       return
     }
-    const [settingsStore, seenStore, agentStore] = await Promise.all([
+    const [store, seenStore, agentStore, reposStore] = await Promise.all([
       openSettingsStore(),
       load('seen.json', { defaults: {}, autoSave: false }),
       load('agents.json', { defaults: {}, autoSave: false }),
+      load(REPOS_FILE, { defaults: {}, autoSave: false }),
     ])
-    settings = await readSettings(settingsStore)
+    settingsStore = store
+    current.value = await readSettings(store)
     const seen = new SeenStore(await seenStore.get('state'))
     sessions = pruneSessions(restoreSessions(await agentStore.get('sessions')), new Date())
 
@@ -146,7 +188,7 @@ export function startBoard() {
           state.problems = [...state.problems, { source: 'notifications', lanes: ['incoming', 'outgoing'], error: toAppError(error) }]
         }),
       setBadge: (count) => void setBadge(count),
-      settings: () => settings,
+      settings: () => current.value,
       order: LANE_ORDER,
       isLoud,
       ambient: isAmbient,
@@ -154,9 +196,25 @@ export function startBoard() {
       recovery: CI_RECOVERY,
     })
 
+    let known = { account: await reposStore.get<string>('account'), counts: (await reposStore.get<Record<string, number>>('counts')) ?? {} }
+    watch(
+      () => state.lanes,
+      (lanes) => {
+        if (!state.account) return
+        const signals = Object.values(lanes).flat().flatMap((section) => section.signals)
+        const counts = countRepos(known.account === state.account ? known.counts : {}, signals)
+        if (known.account === state.account && JSON.stringify(counts) === JSON.stringify(known.counts)) return
+        known = { account: state.account, counts }
+        void (async () => {
+          await reposStore.set('account', known.account)
+          await reposStore.set('counts', known.counts)
+          await reposStore.save()
+        })().catch((error) => report('storage', error))
+      },
+    )
+
     await onSettingsChanged(async () => {
-      await settingsStore.reload()
-      settings = await readSettings(settingsStore)
+      current.value = await readSettings(store)
       await checkHooks()
       void board?.refresh()
     })
@@ -182,7 +240,7 @@ export function startBoard() {
     window.addEventListener('online', () => void board?.refresh())
     setInterval(() => {
       sessions = pruneSessions(sessions, new Date())
-      void board?.refreshIfOlderThan(settings.refreshMinutes * 60_000)
+      void board?.refreshIfOlderThan(current.value.refreshMinutes * 60_000)
     }, HEARTBEAT_MS)
 
     await board.refresh()
@@ -194,11 +252,12 @@ export function startBoard() {
 
   return {
     state,
-    settings: () => settings,
+    settings: () => current.value,
     siteHosts,
     hooks,
     installAgentHooks,
     open,
+    showMenu: (targets: Signal[]) => void showMenu(targets).catch((error) => report('menu', error)),
     refresh: () => board?.refresh(),
     markSeen: (ids: string[]) => board?.markSeen(ids),
   }

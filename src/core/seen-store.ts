@@ -7,6 +7,7 @@ export interface SeenState {
   returned: Record<string, string>
   kinds: Record<string, string>
   fixedAt: Record<string, string>
+  snoozed: Record<string, string>
 }
 
 const TWO_WEEKS_MS = 14 * 86_400_000
@@ -19,6 +20,7 @@ const emptyState = (): SeenState => ({
   returned: {},
   kinds: {},
   fixedAt: {},
+  snoozed: {},
 })
 
 const isRecordOfStrings = (value: unknown): value is Record<string, string> =>
@@ -42,7 +44,8 @@ function restore(raw: unknown): SeenState {
     !isStringList(state.notified) ||
     !isRecordOfStrings(state.returned) ||
     !isRecordOfStrings(state.kinds) ||
-    (state.fixedAt !== undefined && !isRecordOfStrings(state.fixedAt))
+    (state.fixedAt !== undefined && !isRecordOfStrings(state.fixedAt)) ||
+    (state.snoozed !== undefined && !isRecordOfStrings(state.snoozed))
   ) {
     return emptyState()
   }
@@ -55,6 +58,7 @@ function restore(raw: unknown): SeenState {
     returned: { ...state.returned },
     kinds: { ...state.kinds },
     fixedAt: { ...((state.fixedAt as Record<string, string> | undefined) ?? {}) },
+    snoozed: { ...((state.snoozed as Record<string, string> | undefined) ?? {}) },
   }
 }
 
@@ -113,6 +117,25 @@ export class SeenStore {
     this.state.fixedAt[id] = now.toISOString()
   }
 
+  snooze(ids: string[], until: Date): void {
+    for (const id of ids) this.state.snoozed[id] = until.toISOString()
+  }
+
+  isSnoozed(id: string, now: Date): boolean {
+    const until = this.state.snoozed[id]
+    return until !== undefined && Date.parse(until) > now.getTime()
+  }
+
+  wake(now: Date): string[] {
+    const woken = Object.keys(this.state.snoozed).filter((id) => !this.isSnoozed(id, now))
+    for (const id of woken) {
+      delete this.state.snoozed[id]
+      delete this.state.seen[id]
+      this.notified.delete(id)
+    }
+    return woken
+  }
+
   recordReturned(ids: Iterable<string>, now: Date): void {
     const at = now.toISOString()
     for (const id of ids) this.state.returned[id] = at
@@ -125,6 +148,7 @@ export class SeenStore {
       delete this.state.seen[id]
       delete this.state.kinds[id]
       delete this.state.fixedAt[id]
+      delete this.state.snoozed[id]
       this.notified.delete(id)
     }
   }

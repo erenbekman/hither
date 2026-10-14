@@ -1,3 +1,4 @@
+import { terminalFor, type Terminal } from './settings'
 import type { Signal } from './types'
 
 export interface HookEvent {
@@ -11,6 +12,7 @@ export interface HookEvent {
   reason?: string | null
   source?: string | null
   session_title?: string | null
+  terminal?: string | null
 }
 
 export type SessionState = 'running' | 'waiting' | 'done' | 'failed'
@@ -23,6 +25,7 @@ export interface Session {
   updatedAt: string
   title?: string
   message?: string
+  terminal?: Terminal
 }
 
 export type Sessions = Record<string, Session>
@@ -70,6 +73,7 @@ export function applyHookEvent(sessions: Sessions, event: HookEvent, now: Date):
     ...base,
     cwd: event.cwd ?? base.cwd,
     title: event.session_title ?? base.title,
+    terminal: terminalFor(event.terminal) ?? base.terminal,
     updatedAt: at,
     ...(next ? { state: next.state, message: next.message } : {}),
     since: changed || !current ? at : base.since,
@@ -117,6 +121,6 @@ export function sessionSignals(sessions: Sessions, now: Date): Signal[] {
       project: session.cwd.split('/').filter(Boolean).pop() ?? session.cwd,
       title: !session.message ? TITLES[session.state] : session.state === 'failed' ? session.message.replace(/_/g, ' ') : session.message,
       at: session.since,
-      meta: { cwd: session.cwd, sessionTitle: session.title, state: session.state },
+      meta: { cwd: session.cwd, sessionTitle: session.title, state: session.state, terminal: session.terminal },
     }))
 }

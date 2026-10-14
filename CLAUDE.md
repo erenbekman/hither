@@ -8,7 +8,7 @@ macOS menü çubuğu uygulaması. Tauri v2 + Vue 3 + TypeScript + Vite. Ürün v
 
 ## Mimari ilkeler
 
-1. **Rust ince kabuk.** Yalnızca işletim sistemine dokunan işler: tray, popover pencere, keychain, `gh auth token`, bildirim, hook dinleyicisi, `~/.claude/settings.json` okuma/yazma. Hedef 300 satırdı; M4 sonrası test hariç ~610 satır (süreç başlatma, hook dinleyicisi, dosya yazımı izinli eklentilerle TS'e taşınamıyor). Yeni Rust kodu eklemeden önce TS'e taşınabilir mi diye bak.
+1. **Rust ince kabuk.** Yalnızca işletim sistemine dokunan işler: tray, popover pencere, keychain, `gh auth token`, bildirim, hook dinleyicisi, `~/.claude/settings.json` okuma/yazma. Hedef 300 satırdı; test hariç ~730 satır (süreç başlatma, hook dinleyicisi, dosya yazımı izinli eklentilerle TS'e taşınamıyor). Yeni Rust kodu eklemeden önce TS'e taşınabilir mi diye bak.
 2. **Mantık saf TypeScript'te** ve Vitest ile test edilir. Tauri API'sine dokunan kod `src/native.ts` ve `src/ui` ile sınırlı kalır; `src/core` ve `src/sources` Tauri'den bağımsızdır.
 3. **Bağımlılıklar minimum.** UI kütüphanesi ve Pinia yok; durum için `reactive()`.
    - Rust'ta izinli: `tauri-plugin-positioner`, `tauri-plugin-notification`, `tauri-plugin-store`, `tauri-plugin-http`, `tauri-plugin-updater`, `keyring`, `tiny_http` (`serde_json` zaten Tauri'nin bağımlılığı).
@@ -29,14 +29,14 @@ Her kaynak `src/sources/<kaynak>/` altında, verisini tek tipe (`Signal`, `src/c
 
 ## Yapı
 
-- `src-tauri/src/lib.rs` — tray, popover, ayarlar penceresi, `set_badge`, `open_url`, `reveal_panel`
+- `src-tauri/src/lib.rs` — tray, popover, ayarlar penceresi, `set_badge`, `open_url`, `copy_text`, `reveal_panel`
 - `src-tauri/src/gh.rs` — `gh_token` (tam yollar → PATH, 5 sn watchdog)
 - `src-tauri/src/secret.rs` — `secret_get/set/delete` (Keychain)
 - `src-tauri/src/hooks.rs` — Claude Code hook dinleyicisi (`127.0.0.1:47811`), `claude_settings_read/write` (yedekli, atomik, izinleri genişletmez)
-- `src-tauri/src/launch.rs` — iTerm'de `claude` başlatma, yalnız okuma araçlı `claude -p`, `git_repo`, şablon dosyaları
+- `src-tauri/src/launch.rs` — seçili terminalde (iTerm, Terminal, Ghostty, Warp) `claude` başlatma, yalnız okuma araçlı `claude -p`, `git_repo`, şablon dosyaları
 - `src-tauri/src/process.rs` — zaman aşımlı süreç çalıştırıcı ve ikili bulucu (gh, claude)
 - `src/core` — tipler, hatalar, ayarlar, `RefreshGate`, filtreleme, `SeenStore`, bildirim planı, `board` (çok kaynaklı yenileme döngüsü), `recovery` (CI düzeldi), `http`, `openable`
-- `src/sources/github` — sorgu kurucu, GraphQL istemcisi (CI + izlenen branch'ler dahil), cevap ayrıştırıcı, `githubSource`
+- `src/sources/github` — sorgu kurucu, GraphQL istemcisi (CI + izlenen branch'ler, profil ve kota dahil), cevap ayrıştırıcı, `githubSource`; `account.ts` kota görünürlüğü ve repo sayaçları (`repos.json`)
 - `src/sources/forge`, `src/sources/sentry` — Outgoing adapter'ları; token'lar Keychain'de (`forge-token`, `sentry-token`)
 - `src/sources/claude-code` — oturumlardan Agents sinyalleri; durum makinesi `core/sessions.ts`, settings.json birleştirme `core/claude-settings.ts`
 - `src/lanes.ts` — şerit başına bölüm sırası, başlıklar, "loud" kuralı (bildirim + rozet)

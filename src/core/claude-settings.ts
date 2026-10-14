@@ -2,6 +2,7 @@ import type { AppError } from './errors'
 
 export const HOOK_EVENTS = ['SessionStart', 'UserPromptSubmit', 'Notification', 'PostToolUse', 'Stop', 'StopFailure', 'SessionEnd'] as const
 export const HOOK_TIMEOUT_SECONDS = 5
+export const TERMINAL_HEADER = 'X-Hither-Terminal'
 
 type Json = Record<string, unknown>
 const isObject = (value: unknown): value is Json => typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -52,7 +53,17 @@ export function addHooks(settings: Json, url: string, token: string): Json {
     const groups = Array.isArray(hooks[event]) ? hooks[event] : []
     hooks[event] = [
       ...groups,
-      { hooks: [{ type: 'http', url, timeout: HOOK_TIMEOUT_SECONDS, headers: { Authorization: `Bearer ${token}` } }] },
+      {
+        hooks: [
+          {
+            type: 'http',
+            url,
+            timeout: HOOK_TIMEOUT_SECONDS,
+            headers: { Authorization: `Bearer ${token}`, [TERMINAL_HEADER]: '$TERM_PROGRAM' },
+            allowedEnvVars: ['TERM_PROGRAM'],
+          },
+        ],
+      },
     ]
   }
   result.hooks = hooks
@@ -68,7 +79,13 @@ export function hookStatus(settings: Json, url: string, token: string): HookStat
   })
   if (ours.every((list) => list.length === 0)) return 'missing'
   const current = ours.every(
-    (list) => list.length === 1 && isObject(list[0].headers) && list[0].headers.Authorization === `Bearer ${token}`,
+    ([hook, ...rest]) =>
+      rest.length === 0 &&
+      isObject(hook?.headers) &&
+      hook.headers.Authorization === `Bearer ${token}` &&
+      hook.headers[TERMINAL_HEADER] === '$TERM_PROGRAM' &&
+      Array.isArray(hook.allowedEnvVars) &&
+      hook.allowedEnvVars.includes('TERM_PROGRAM'),
   )
   return current ? 'installed' : 'outdated'
 }

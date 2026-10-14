@@ -13,11 +13,11 @@ defineProps<{
   nested?: boolean
   avatar?: { login: string; url?: string }
 }>()
-defineEmits<{ activate: [] }>()
+defineEmits<{ activate: []; menu: [] }>()
 </script>
 
 <template>
-  <button class="row" data-row :class="[severity, { unseen, nested }]" @click="$emit('activate')">
+  <button class="row" data-row :class="[severity, { unseen, nested }]" @click="$emit('activate')" @contextmenu.prevent="$emit('menu')">
     <span class="status" />
     <Avatar v-if="avatar" :login="avatar.login" :url="avatar.url" />
     <span class="text">

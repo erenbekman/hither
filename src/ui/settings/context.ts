@@ -1,6 +1,6 @@
 import { inject, provide, reactive, type InjectionKey } from 'vue'
 import { fetch as httpFetch } from '@tauri-apps/plugin-http'
-import type { Store } from '@tauri-apps/plugin-store'
+import { load as loadStore, type Store } from '@tauri-apps/plugin-store'
 import type { HookStatus } from '../../core/claude-settings'
 import { toAppError, type AppError } from '../../core/errors'
 import { DEFAULT_SETTINGS, normalizeSettings, type Settings } from '../../core/settings'
@@ -9,12 +9,13 @@ import { FORGE_TOKEN_KEY, listForgeOrganizations, listForgeServers } from '../..
 import { fetchOrganizations } from '../../sources/github'
 import { SENTRY_TOKEN_KEY } from '../../sources/sentry'
 import { installHooks, readHookStatus, uninstallHooks } from '../hooks'
-import { announceSettingsChanged, openSettingsStore, readSettings, writeSettings } from '../settings-store'
+import { announceSettingsChanged, onSettingsChanged, openSettingsStore, readSettings, REPOS_FILE, writeSettings } from '../settings-store'
 import { startUpdates } from '../update-runtime'
 
 export interface SettingsState {
   settings: Settings
   organizations: string[]
+  knownRepos: Record<string, number>
   forgeOrgs: { slug: string; name: string }[]
   forgeServers: { id: string; name: string }[]
   tokens: Record<string, boolean>
@@ -32,6 +33,7 @@ export function createSettingsContext() {
   const state = reactive<SettingsState>({
     settings: { ...DEFAULT_SETTINGS },
     organizations: [],
+    knownRepos: {},
     forgeOrgs: [],
     forgeServers: [],
     tokens: {},
@@ -53,7 +55,8 @@ export function createSettingsContext() {
   async function save(patch: Partial<Settings>) {
     state.settings = normalizeSettings({ ...state.settings, ...patch })
     if (!store) return
-    await attempt(() => writeSettings(store!, state.settings))
+    const values = Object.fromEntries(Object.keys(patch).map((key) => [key, state.settings[key as keyof Settings]]))
+    await attempt(() => writeSettings(store!, values))
   }
 
   async function loadForge() {
@@ -122,6 +125,9 @@ export function createSettingsContext() {
       store = await openSettingsStore()
       state.settings = await readSettings(store)
       state.loaded = true
+      await onSettingsChanged(async () => {
+        state.settings = await readSettings(store!)
+      })
     })
     await attempt(async () => {
       for (const key of [FORGE_TOKEN_KEY, SENTRY_TOKEN_KEY]) state.tokens[key] = (await secretGet(key)) !== null
@@ -131,6 +137,10 @@ export function createSettingsContext() {
     })
     await attempt(async () => {
       state.launchAtLogin = await launchAtLogin()
+    })
+    await attempt(async () => {
+      const counts = await (await loadStore(REPOS_FILE, { defaults: {}, autoSave: false })).get<Record<string, unknown>>('counts')
+      state.knownRepos = Object.fromEntries(Object.entries(counts ?? {}).filter((entry): entry is [string, number] => typeof entry[1] === 'number'))
     })
     await refreshHookStatus()
     await loadForge()

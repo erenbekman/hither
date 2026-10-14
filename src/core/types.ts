@@ -18,10 +18,26 @@ export interface Ctx {
   signal: AbortSignal
 }
 
+export interface Profile {
+  name?: string
+  avatar?: string
+  followers: number
+  stars: number
+  starsAreExact: boolean
+}
+
+export interface Quota {
+  limit: number
+  remaining: number
+  resetAt: string
+}
+
 export interface PollResult {
   signals: Signal[]
   notices: string[]
   account?: string
+  profile?: Profile
+  quota?: Quota
   retryAt?: string
 }
 

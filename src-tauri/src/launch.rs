@@ -11,9 +11,13 @@ use tauri::{AppHandle, Manager};
 
 use crate::process::{is_executable, locate, run, RunError};
 
-const TERMINAL: &str = "iTerm";
+const TERMINALS: [&str; 4] = ["iTerm", "Terminal", "Ghostty", "Warp"];
 const PRINT_TIMEOUT: Duration = Duration::from_secs(120);
 const READ_ONLY_TOOLS: [&str; 6] = ["Read", "Grep", "Glob", "Bash(gh pr view:*)", "Bash(gh pr diff:*)", "Bash(gh run view:*)"];
+
+fn terminal_app(name: &str) -> Result<&'static str, String> {
+    TERMINALS.into_iter().find(|t| *t == name).ok_or_else(|| format!("{name} is not a supported terminal"))
+}
 
 fn home() -> Result<String, String> {
     std::env::var("HOME").map_err(|_| "HOME is not set".to_string())
@@ -82,7 +86,8 @@ pub async fn git_repo(path: String) -> Option<GitRepo> {
 }
 
 #[tauri::command]
-pub fn launch_claude(folder: String, prompt: String, attachment: Option<String>) -> Result<(), String> {
+pub fn launch_claude(folder: String, prompt: String, attachment: Option<String>, terminal: String) -> Result<(), String> {
+    let terminal = terminal_app(&terminal)?;
     if !Path::new(&folder).is_absolute() || !Path::new(&folder).is_dir() {
         return Err(format!("{folder} is not a folder"));
     }
@@ -102,8 +107,8 @@ pub fn launch_claude(folder: String, prompt: String, attachment: Option<String>)
     let script = dir.join(format!("launch-{stamp}.command"));
     private_file(&prompt_file, &prompt, 0o600).map_err(|e| e.to_string())?;
     private_file(&script, &launcher(&folder, &claude, &prompt_file, &script), 0o700).map_err(|e| e.to_string())?;
-    let status = Command::new("/usr/bin/open").args(["-a", TERMINAL]).arg(&script).status().map_err(|e| e.to_string())?;
-    status.success().then_some(()).ok_or_else(|| format!("{TERMINAL} could not be opened"))
+    let status = Command::new("/usr/bin/open").args(["-a", terminal]).arg(&script).status().map_err(|e| e.to_string())?;
+    status.success().then_some(()).ok_or_else(|| format!("{terminal} could not be opened"))
 }
 
 #[tauri::command]
@@ -128,8 +133,8 @@ pub async fn claude_print(folder: Option<String>, prompt: String) -> Result<Stri
 }
 
 #[tauri::command]
-pub fn focus_terminal() -> Result<(), String> {
-    Command::new("/usr/bin/open").args(["-a", TERMINAL]).status().map(|_| ()).map_err(|e| e.to_string())
+pub fn focus_terminal(terminal: String) -> Result<(), String> {
+    Command::new("/usr/bin/open").args(["-a", terminal_app(&terminal)?]).status().map(|_| ()).map_err(|e| e.to_string())
 }
 
 fn templates_dir(app: &AppHandle) -> Result<PathBuf, String> {
@@ -168,6 +173,13 @@ mod tests {
     #[test]
     fn quotes_single_quotes_for_the_shell() {
         assert_eq!(quote("/a b/it's"), r"'/a b/it'\''s'");
+    }
+
+    #[test]
+    fn accepts_only_known_terminals() {
+        assert_eq!(terminal_app("Ghostty"), Ok("Ghostty"));
+        assert!(terminal_app("Calculator").is_err());
+        assert!(terminal_app("/Applications/iTerm.app").is_err());
     }
 
     #[test]
