@@ -27,6 +27,10 @@ const notices = computed(() => props.state.notices.filter((notice) => notice.lan
 
 const unseenIn = (signals: Signal[]) => signals.filter((signal) => props.state.unseen[signal.id])
 const groupKey = (section: Section, project: string) => `${section.kind}:${project}`
+const avatarOf = (signal: Signal) =>
+  signal.source === 'github' && signal.actor
+    ? { login: signal.actor, url: typeof signal.meta?.avatar === 'string' ? signal.meta.avatar : undefined }
+    : undefined
 const strongest = (signals: Signal[]): Signal['severity'] =>
   signals.some((s) => s.severity === 'critical') ? 'critical' : signals.some((s) => s.severity === 'attention') ? 'attention' : 'info'
 </script>
@@ -53,6 +57,7 @@ const strongest = (signals: Signal[]): Signal['severity'] =>
             :age="ago(row.signal.at, now)"
             :severity="row.signal.severity"
             :unseen="!!state.unseen[row.signal.id]"
+            :avatar="avatarOf(row.signal)"
             @activate="open(row.signal.id, row.signal.url)"
           />
           <template v-else>
@@ -76,6 +81,7 @@ const strongest = (signals: Signal[]): Signal['severity'] =>
                 :age="ago(signal.at, now)"
                 :severity="signal.severity"
                 :unseen="!!state.unseen[signal.id]"
+                :avatar="avatarOf(signal)"
                 @activate="open(signal.id, signal.url)"
               />
             </template>

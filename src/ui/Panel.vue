@@ -27,8 +27,46 @@ const updates = startUpdates({ periodic: true })
 const suggestions = startSuggestions({ board: board.state, settings: board.settings, siteHosts: board.siteHosts, ephemeral: DEMO })
 const now = ref(new Date())
 let ticker: ReturnType<typeof setInterval> | undefined
-onMounted(() => (ticker = setInterval(() => (now.value = new Date()), 30_000)))
-onUnmounted(() => clearInterval(ticker))
+
+const TAB_ORDER: Tab[] = ['incoming', 'outgoing', 'agents', 'suggestions']
+
+function moveRow(step: number) {
+  const rows = [...document.querySelectorAll<HTMLElement>('[data-row]')]
+  if (rows.length === 0) return
+  const index = rows.indexOf(document.activeElement as HTMLElement)
+  const next = index === -1 ? (step > 0 ? 0 : rows.length - 1) : Math.min(rows.length - 1, Math.max(0, index + step))
+  rows[next].focus()
+  rows[next].scrollIntoView({ block: 'nearest' })
+}
+
+function onKey(event: KeyboardEvent) {
+  if ((event.target as HTMLElement).closest('input, textarea, select')) return
+  if (event.metaKey && event.key === 'r') {
+    event.preventDefault()
+    void board.refresh()
+  } else if (event.metaKey && event.key === ',') {
+    event.preventDefault()
+    void openSettings()
+  } else if (event.metaKey || event.ctrlKey || event.altKey) {
+    return
+  } else if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+    event.preventDefault()
+    const index = TAB_ORDER.indexOf(view.tab)
+    view.tab = TAB_ORDER[(index + (event.key === 'ArrowRight' ? 1 : TAB_ORDER.length - 1)) % TAB_ORDER.length]
+  } else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+    event.preventDefault()
+    moveRow(event.key === 'ArrowDown' ? 1 : -1)
+  }
+}
+
+onMounted(() => {
+  ticker = setInterval(() => (now.value = new Date()), 30_000)
+  window.addEventListener('keydown', onKey)
+})
+onUnmounted(() => {
+  clearInterval(ticker)
+  window.removeEventListener('keydown', onKey)
+})
 
 const laneCritical = (lane: Lane) =>
   board.state.lanes[lane].some((section) => section.signals.some((s) => s.severity === 'critical' && board.state.unseen[s.id]))
@@ -69,7 +107,9 @@ const showHookBanner = computed(() => view.tab === 'agents' && board.hooks.statu
       >
         ↻
       </button>
-      <button class="icon-button" title="Settings" @click="openSettings()">⚙︎</button>
+      <button class="icon-button" title="Settings" aria-label="Settings" @click="openSettings()">
+        <svg class="gear" viewBox="0 0 18 18" aria-hidden="true"><path d="M9 6.2a2.8 2.8 0 1 0 0 5.6 2.8 2.8 0 0 0 0-5.6zM9 1.8v2M9 14.2v2M1.8 9h2M14.2 9h2M3.9 3.9l1.4 1.4M12.7 12.7l1.4 1.4M3.9 14.1l1.4-1.4M12.7 5.3l1.4-1.4" /></svg>
+      </button>
     </header>
 
     <Banner
@@ -152,6 +192,19 @@ const showHookBanner = computed(() => view.tab === 'agents' && board.hooks.statu
 
 .spacer {
   flex: 1;
+}
+
+.gear {
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+}
+
+.refresh {
+  font-size: 16px;
 }
 
 .refresh.spinning {

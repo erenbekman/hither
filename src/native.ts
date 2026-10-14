@@ -23,3 +23,5 @@ export const syncTemplates = (defaults: Record<string, string>) => invoke<Record
 export const openTemplates = () => invoke<void>('open_templates')
 export const restartApp = () => invoke<void>('restart_app')
 export const openSettings = () => invoke<void>('open_settings_window')
+export const launchAtLogin = () => invoke<boolean>('launch_at_login')
+export const setLaunchAtLogin = (enabled: boolean) => invoke<void>('set_launch_at_login', { enabled })

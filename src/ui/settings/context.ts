@@ -4,7 +4,7 @@ import type { Store } from '@tauri-apps/plugin-store'
 import type { HookStatus } from '../../core/claude-settings'
 import { toAppError, type AppError } from '../../core/errors'
 import { DEFAULT_SETTINGS, normalizeSettings, type Settings } from '../../core/settings'
-import { ghToken, openTemplates, secretDelete, secretGet, secretSet } from '../../native'
+import { ghToken, launchAtLogin, openTemplates, secretDelete, secretGet, secretSet, setLaunchAtLogin } from '../../native'
 import { FORGE_TOKEN_KEY, listForgeOrganizations, listForgeServers } from '../../sources/forge'
 import { fetchOrganizations } from '../../sources/github'
 import { SENTRY_TOKEN_KEY } from '../../sources/sentry'
@@ -21,6 +21,7 @@ export interface SettingsState {
   hooks?: HookStatus
   hooksBlocked: boolean
   backup?: string
+  launchAtLogin?: boolean
   loaded: boolean
   errors: AppError[]
 }
@@ -109,6 +110,13 @@ export function createSettingsContext() {
     await refreshHookStatus()
   }
 
+  async function changeLaunchAtLogin(enabled: boolean) {
+    await attempt(async () => {
+      await setLaunchAtLogin(enabled)
+      state.launchAtLogin = await launchAtLogin()
+    })
+  }
+
   async function load() {
     await attempt(async () => {
       store = await openSettingsStore()
@@ -120,6 +128,9 @@ export function createSettingsContext() {
     })
     await attempt(async () => {
       state.organizations = await fetchOrganizations(await ghToken())
+    })
+    await attempt(async () => {
+      state.launchAtLogin = await launchAtLogin()
     })
     await refreshHookStatus()
     await loadForge()
@@ -134,6 +145,7 @@ export function createSettingsContext() {
     forgetToken,
     chooseForgeOrg,
     changeHooks,
+    changeLaunchAtLogin,
     openTemplates: () => attempt(openTemplates),
     dismissError: (index: number) => state.errors.splice(index, 1),
     load,

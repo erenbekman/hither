@@ -97,6 +97,12 @@ code {
   opacity: 0.5;
 }
 
+.button:focus-visible,
+.icon-button:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--blue) 60%, transparent);
+  outline-offset: 1px;
+}
+
 .text-input {
   width: 100%;
   padding: 4px 7px;

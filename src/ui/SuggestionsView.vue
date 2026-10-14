@@ -48,6 +48,7 @@ function label(action: SuggestionAction): string {
             :key="i"
             class="button"
             :class="{ primary: i === 0 }"
+            :data-row="i === 0 ? '' : undefined"
             :disabled="state.busy[card.id]"
             :title="action.kind === 'summarize' ? 'Sends the pull request to Claude (claude -p, read-only tools)' : undefined"
             @click="run(card, action)"

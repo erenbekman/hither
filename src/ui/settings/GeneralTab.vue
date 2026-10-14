@@ -5,7 +5,7 @@ import Toggle from '../components/Toggle.vue'
 import SettingRow from './SettingRow.vue'
 import { useSettings } from './context'
 
-const { state, save, updates } = useSettings()
+const { state, save, updates, changeLaunchAtLogin } = useSettings()
 const INTERVALS = [1, 2, 5, 10, 15, 30]
 </script>
 
@@ -18,6 +18,14 @@ const INTERVALS = [1, 2, 5, 10, 15, 30]
           {{ state.settings.refreshMinutes }} min
         </option>
       </select>
+    </SettingRow>
+    <SettingRow label="Open at login" hint="Starts Hither when you log in; listed under Login Items in System Settings">
+      <Toggle
+        label="Open at login"
+        :model-value="state.launchAtLogin ?? false"
+        :disabled="state.launchAtLogin === undefined"
+        @update:model-value="changeLaunchAtLogin($event)"
+      />
     </SettingRow>
     <SettingRow label="Notifications" hint="New items, failed checks and deploys, waiting Claude sessions">
       <Toggle label="Notifications" :model-value="state.settings.notifications" @update:model-value="save({ notifications: $event })" />

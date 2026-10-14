@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { Signal } from '../../core/types'
+import Avatar from './Avatar.vue'
 
 defineProps<{
   title: string
@@ -10,13 +11,15 @@ defineProps<{
   group?: boolean
   expanded?: boolean
   nested?: boolean
+  avatar?: { login: string; url?: string }
 }>()
 defineEmits<{ activate: [] }>()
 </script>
 
 <template>
-  <button class="row" :class="[severity, { unseen, nested }]" @click="$emit('activate')">
+  <button class="row" data-row :class="[severity, { unseen, nested }]" @click="$emit('activate')">
     <span class="status" />
+    <Avatar v-if="avatar" :login="avatar.login" :url="avatar.url" />
     <span class="text">
       <span class="title">{{ title }}</span>
       <span class="subtitle">{{ subtitle }}</span>
@@ -42,6 +45,12 @@ defineEmits<{ activate: [] }>()
 
 .row:hover {
   background: var(--fill-hover);
+}
+
+.row:focus-visible {
+  outline: none;
+  background: var(--fill-selected);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--blue) 45%, transparent);
 }
 
 .row.nested {
