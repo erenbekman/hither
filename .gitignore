@@ -9,3 +9,4 @@ release/
 .superpowers/
 src-tauri/icons/android/
 src-tauri/icons/ios/
+.claude/launch.json
