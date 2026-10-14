@@ -1,7 +1,9 @@
 mod gh;
 mod process;
 mod hooks;
+mod instance;
 mod launch;
+mod login;
 mod secret;
 
 use std::process::Command;
@@ -156,8 +158,16 @@ pub fn run() {
             launch::focus_terminal,
             launch::sync_templates,
             launch::open_templates,
+            login::launch_at_login,
+            login::set_launch_at_login,
         ])
         .setup(|app| {
+            match instance::acquire(&app.path().app_data_dir()?)? {
+                Some(lock) => {
+                    app.manage(lock);
+                }
+                None => std::process::exit(0),
+            }
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
             setup_tray(app.handle())?;
