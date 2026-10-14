@@ -43,6 +43,8 @@ const latest = {
 fs.writeFileSync(`${out}/latest.json`, JSON.stringify(latest, null, 2) + '\n')
 JS
 
+cp "$out/$dmg_name" "$out/Hither.dmg"
+
 sha=$(shasum -a 256 "$out/$dmg_name" | cut -d' ' -f1)
 sed -e "s/{{version}}/$version/" -e "s/{{sha256}}/$sha/" packaging/hither.rb.template > "$out/hither.rb"
 
@@ -53,6 +55,6 @@ cat <<NEXT
 Publish:
   git tag v$version && git push origin v$version
   gh release create v$version --repo $REPO --title "Hither $version" --notes "$notes" \\
-    "$out/$dmg_name" "$out/Hither.app.tar.gz" "$out/latest.json"
+    "$out/$dmg_name" "$out/Hither.dmg" "$out/Hither.app.tar.gz" "$out/latest.json"
   cp "$out/hither.rb" <path-to>/homebrew-tap/Casks/hither.rb   # then commit and push the tap
 NEXT
