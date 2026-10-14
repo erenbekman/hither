@@ -36,11 +36,12 @@ defineEmits<{ 'update:modelValue': [id: string] }>()
 
 button {
   display: inline-flex;
-  flex: 1;
+  flex: 1 1 auto;
   align-items: center;
   justify-content: center;
   gap: 4px;
-  padding: 3px 0;
+  padding: 3px 8px;
+  white-space: nowrap;
   border: 0;
   border-radius: 6px;
   background: transparent;
