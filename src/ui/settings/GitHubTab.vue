@@ -105,6 +105,14 @@ function addRepo() {
     <SettingRow label="Show drafts">
       <Toggle label="Show drafts" :model-value="state.settings.showDrafts" @update:model-value="save({ showDrafts: $event })" />
     </SettingRow>
+    <SettingRow label="Flag review requests older than" hint="Hours since the pull request was opened; 0 never flags">
+      <input
+        type="number"
+        min="0"
+        :value="state.settings.reviewOverdueHours"
+        @change="save({ reviewOverdueHours: Number(text($event)) })"
+      />
+    </SettingRow>
     <SettingRow label="Fold a repository with more than" hint="0 never folds">
       <input
         type="number"

@@ -93,7 +93,7 @@ interface Source {
 
 ### Gelen
 
-GHBar'ın beş araması değişmeden taşınır (başkalarının PR/issue'ları, review bekleyenler, changes requested, kendi PR'ların). Tek fark: GHBar bot PR'larını atar, biz agent bot'larını atmayıp **Agentlar** şeridine yönlendiririz. Dependabot gibi bot'lar yine filtrelenir.
+GHBar'ın beş araması değişmeden taşınır (başkalarının PR/issue'ları, review bekleyenler, changes requested, kendi PR'ların). Tek fark: GHBar bot PR'larını atar, biz agent bot'larını atmayıp **Agentlar** şeridine yönlendiririz. Dependabot gibi bot'lar yine filtrelenir. Sonradan iki arama eklendi: `is:open mentions:@me` ve `is:open assignee:@me` (PR ve issue birlikte, `__typename` ile ayrılır). Kendi PR'ların `reviewDecision` ve `mergeable` alanlarıyla "Ready to Merge" (onaylı, check'ler yeşil, taslak değil) ve "Merge Conflicts" bölümlerine ayrılır. Yedi aramayla sorgu maliyeti hâlâ 2 puan (ölçüldü).
 
 ### Giden (Ship)
 

@@ -11,6 +11,8 @@ export interface Queries {
   review: string
   changesRequested: string
   myPullRequests: string
+  mentions: string
+  assigned: string
   filtersDropped: boolean
   allowListEmpty: boolean
 }
@@ -42,6 +44,8 @@ export function buildQueries(settings: ScopeSettings): Queries {
     review: assemble(['is:pr', 'is:open', 'review-requested:@me', ...orgScope]),
     changesRequested: assemble(['is:pr', 'is:open', 'author:@me', 'review:changes_requested', ...authoredScope]),
     myPullRequests: assemble(['is:pr', 'is:open', 'author:@me', ...authoredScope]),
+    mentions: assemble(['is:open', 'mentions:@me', ...authoredScope]),
+    assigned: assemble(['is:open', 'assignee:@me', ...authoredScope]),
     filtersDropped,
     allowListEmpty: allowList && repos.length === 0,
   }

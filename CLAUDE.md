@@ -20,7 +20,7 @@ macOS menü çubuğu uygulaması. Tauri v2 + Vue 3 + TypeScript + Vite. Ürün v
 
 | Şerit | Sekme | Kaynaklar | Aşama |
 | --- | --- | --- | --- |
-| Gelen | Incoming | GitHub (GHBar'ın beş araması) | M1 |
+| Gelen | Incoming | GitHub (GHBar'ın beş araması + bahsedilmeler ve atananlar) | M1 |
 | Giden | Outgoing | GitHub CI, Forge, Sentry | M2 |
 | Agentlar | Agents | Claude Code hook'ları, agent PR'ları | M3 |
 | Öneriler | Suggestions | Diğer şeritlerin sinyallerinden deterministik kurallar | M4 |

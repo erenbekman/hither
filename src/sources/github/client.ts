@@ -9,8 +9,11 @@ export const TIMEOUT_MS = 15_000
 const itemFields = 'number title url createdAt author { login __typename avatarUrl(size: 48) } repository { nameWithOwner }'
 const rollup = 'statusCheckRollup { state }'
 const lastCommit = `commits(last: 1) { nodes { commit { ${rollup} } } }`
-const prSearch = (alias: string, withChecks: boolean) =>
-  `${alias}: search(query: $${alias}, type: ISSUE, first: $first) { issueCount nodes { ... on PullRequest { ${itemFields} isDraft headRefName ${withChecks ? lastCommit : ''} } } }`
+const prFields = `${itemFields} isDraft headRefName`
+const prSearch = (alias: string, extra = '') =>
+  `${alias}: search(query: $${alias}, type: ISSUE, first: $first) { issueCount nodes { ... on PullRequest { ${prFields} ${extra} } } }`
+const mixedSearch = (alias: string) =>
+  `${alias}: search(query: $${alias}, type: ISSUE, first: $first) { issueCount nodes { __typename ... on PullRequest { ${prFields} } ... on Issue { ${itemFields} } } }`
 
 export function document(watched: number): string {
   const repoVars = Array.from({ length: watched }, (_, i) => `, $w${i}o: String!, $w${i}n: String!`).join('')
@@ -19,13 +22,15 @@ export function document(watched: number): string {
     (_, i) =>
       `w${i}: repository(owner: $w${i}o, name: $w${i}n) { nameWithOwner defaultBranchRef { name target { ... on Commit { oid url messageHeadline committedDate author { user { login } name } ${rollup} } } } }`,
   ).join('\n  ')
-  return `query($prs: String!, $issues: String!, $review: String!, $changesRequested: String!, $myPullRequests: String!, $first: Int!${repoVars}) {
+  return `query($prs: String!, $issues: String!, $review: String!, $changesRequested: String!, $myPullRequests: String!, $mentions: String!, $assigned: String!, $first: Int!${repoVars}) {
   viewer { login name avatarUrl(size: 64) organizations(first: 50) { nodes { login } } followers { totalCount } repositories(first: 100, ownerAffiliations: OWNER, isFork: false, privacy: PUBLIC, orderBy: { field: STARGAZERS, direction: DESC }) { totalCount nodes { stargazerCount } } }
-  ${prSearch('prs', true)}
+  ${prSearch('prs', lastCommit)}
   issues: search(query: $issues, type: ISSUE, first: $first) { issueCount nodes { ... on Issue { ${itemFields} } } }
-  ${prSearch('review', false)}
-  ${prSearch('changesRequested', false)}
-  ${prSearch('myPullRequests', true)}
+  ${prSearch('review')}
+  ${prSearch('changesRequested')}
+  ${prSearch('myPullRequests', `${lastCommit} reviewDecision mergeable`)}
+  ${mixedSearch('mentions')}
+  ${mixedSearch('assigned')}
   ${repos}
   rateLimit { limit remaining resetAt cost }
 }`
@@ -52,6 +57,8 @@ export function buildRequest(token: string, queries: Queries, watched: string[] 
         review: queries.review,
         changesRequested: queries.changesRequested,
         myPullRequests: queries.myPullRequests,
+        mentions: queries.mentions,
+        assigned: queries.assigned,
         first: SEARCH_LIMIT,
         ...repoVariables,
       },

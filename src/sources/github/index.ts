@@ -5,7 +5,17 @@ import { fetchSnapshot } from './client'
 import type { Branch, Item, SearchKey } from './parse'
 import { buildQueries } from './query'
 
-export const KIND_ORDER = ['changes-requested', 'review-requested', 'pr', 'issue', 'my-pr'] as const
+export const KIND_ORDER = [
+  'changes-requested',
+  'conflicting',
+  'review-requested',
+  'ready-to-merge',
+  'assigned',
+  'mentioned',
+  'pr',
+  'issue',
+  'my-pr',
+] as const
 export type GitHubKind = (typeof KIND_ORDER)[number]
 
 export const QUIET_KINDS: readonly string[] = ['my-pr']
@@ -23,7 +33,11 @@ const FAILED = new Set(['FAILURE', 'ERROR'])
 
 export const KIND_TITLES: Record<GitHubKind, string> = {
   'changes-requested': 'Changes Requested',
+  conflicting: 'Merge Conflicts',
   'review-requested': 'Review Requested',
+  'ready-to-merge': 'Ready to Merge',
+  assigned: 'Assigned to You',
+  mentioned: 'Mentioned',
   pr: 'Pull Requests',
   issue: 'Issues',
   'my-pr': 'My Pull Requests',
@@ -35,6 +49,16 @@ const SEARCH_KIND: Record<SearchKey, GitHubKind> = {
   prs: 'pr',
   issues: 'issue',
   myPullRequests: 'my-pr',
+  mentions: 'mentioned',
+  assigned: 'assigned',
+}
+
+const ATTENTION_KINDS: readonly string[] = ['changes-requested', 'review-requested', 'conflicting']
+
+export function myPullRequestKind(item: Item): GitHubKind {
+  if (item.mergeable === 'CONFLICTING') return 'conflicting'
+  if (item.reviewDecision === 'APPROVED' && item.ci === 'SUCCESS' && !item.isDraft) return 'ready-to-merge'
+  return 'my-pr'
 }
 
 export function toSignal(item: Item, kind: GitHubKind): Signal {
@@ -43,13 +67,13 @@ export function toSignal(item: Item, kind: GitHubKind): Signal {
     source: 'github',
     lane: 'incoming',
     kind,
-    severity: kind === 'changes-requested' || kind === 'review-requested' ? 'attention' : 'info',
+    severity: ATTENTION_KINDS.includes(kind) ? 'attention' : 'info',
     project: item.repository,
     title: item.title,
     url: item.url,
     actor: item.authorLogin,
     at: item.createdAt,
-    meta: { number: item.number, type: item.type, isDraft: item.isDraft, isBot: item.authorIsBot, avatar: item.authorAvatar },
+    meta: { number: item.number, type: item.type, isDraft: item.isDraft, isBot: item.authorIsBot, avatar: item.authorAvatar, branch: item.headRef },
   }
 }
 
@@ -126,9 +150,14 @@ export function describeSignal(signal: Signal): string {
       return `${signal.meta?.branch ?? 'main'} is red`
     case 'ci-failed':
       return `Checks failed on #${signal.meta?.number}`
+    case 'ready-to-merge':
+      return `Ready to merge #${signal.meta?.number}`
+    case 'conflicting':
+      return `Merge conflicts in #${signal.meta?.number}`
     default: {
       const what = signal.meta?.type === 'issue' ? 'issue' : 'pull request'
-      return `New ${what} #${signal.meta?.number ?? ''}`.trim()
+      const verb = signal.kind === 'mentioned' ? 'Mentioned in' : signal.kind === 'assigned' ? 'Assigned' : 'New'
+      return `${verb} ${what} #${signal.meta?.number ?? ''}`.trim()
     }
   }
 }
@@ -160,7 +189,7 @@ export function githubSource(deps: {
             if (!known || (known.meta?.ci === undefined && item.ci !== undefined)) agentPrs.set(item.url, agentPullRequest(item))
             return []
           }
-          return [toSignal(item, SEARCH_KIND[key])]
+          return [toSignal(item, key === 'myPullRequests' ? myPullRequestKind(item) : SEARCH_KIND[key])]
         }),
       )
       signals.push(...agentPrs.values())

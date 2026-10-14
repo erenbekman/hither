@@ -41,6 +41,14 @@ export const response = {
         pr(42, 'bob', 'User', { commits: { nodes: [{ commit: { statusCheckRollup: { state: 'SUCCESS' } } }] } }),
       ],
     },
+    mentions: {
+      issueCount: 2,
+      nodes: [
+        { ...pr(51, 'heidi'), __typename: 'Issue', url: 'https://github.com/bob/tools/issues/51' },
+        { ...pr(52, 'ivan'), __typename: 'PullRequest' },
+      ],
+    },
+    assigned: emptySearch,
     w0: {
       nameWithOwner: 'bob/site',
       defaultBranchRef: {
@@ -68,6 +76,8 @@ export const withData = (data: Record<string, unknown>, extra: Record<string, un
     review: emptySearch,
     changesRequested: emptySearch,
     myPullRequests: emptySearch,
+    mentions: emptySearch,
+    assigned: emptySearch,
     rateLimit: { limit: 5000, remaining: 1, resetAt: '2026-10-14T13:00:00Z' },
     ...data,
   },

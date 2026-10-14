@@ -36,6 +36,7 @@ export const RULE_ORDER = [
   'deploy-failed',
   'ci-failed',
   'changes-requested',
+  'conflicting',
   'agent-waiting',
   'agent-pr-ready',
   'stale-review',
@@ -148,6 +149,22 @@ function fromSignals(input: RuleInput): Suggestion[] {
           at: s.at,
           actions: [
             { kind: 'claude', template: 'changes-requested', repo: s.project, vars: { repo: s.project, number: num(s) } },
+            ...open(s.url, 'Open on GitHub'),
+          ],
+        },
+      ]
+    }
+    if (s.source === 'github' && s.kind === 'conflicting') {
+      return [
+        {
+          id: `conflicting:${s.id}`,
+          rule: 'conflicting',
+          severity: 'attention',
+          title: `#${num(s)} has merge conflicts`,
+          detail: `${s.project} · ${s.title}`,
+          at: s.at,
+          actions: [
+            { kind: 'claude', template: 'merge-conflicts', repo: s.project, vars: { repo: s.project, number: num(s) } },
             ...open(s.url, 'Open on GitHub'),
           ],
         },

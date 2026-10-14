@@ -12,12 +12,13 @@ defineProps<{
   expanded?: boolean
   nested?: boolean
   avatar?: { login: string; url?: string }
+  overdue?: boolean
 }>()
 defineEmits<{ activate: []; menu: [] }>()
 </script>
 
 <template>
-  <button class="row" data-row :class="[severity, { unseen, nested }]" @click="$emit('activate')" @contextmenu.prevent="$emit('menu')">
+  <button class="row" data-row :class="[severity, { unseen, nested, overdue }]" @click="$emit('activate')" @contextmenu.prevent="$emit('menu')">
     <span class="status" />
     <Avatar v-if="avatar" :login="avatar.login" :url="avatar.url" />
     <span class="text">
@@ -25,7 +26,7 @@ defineEmits<{ activate: []; menu: [] }>()
       <span class="subtitle">{{ subtitle }}</span>
     </span>
     <span v-if="group" class="chevron" :class="{ expanded }">▸</span>
-    <span v-else class="age num">{{ age }}</span>
+    <span v-else class="age num" :title="overdue ? 'Waiting longer than you set in Settings' : undefined">{{ age }}</span>
   </button>
 </template>
 
@@ -68,6 +69,15 @@ defineEmits<{ activate: []; menu: [] }>()
 .unseen .status {
   box-shadow: none;
   background: var(--blue);
+}
+
+.overdue .status {
+  box-shadow: inset 0 0 0 1.5px var(--orange);
+}
+
+.overdue .age {
+  color: var(--orange);
+  font-weight: 600;
 }
 
 .unseen.attention .status {

@@ -35,6 +35,7 @@ export interface Settings {
   quietStart: string
   quietEnd: string
   quotaVisibility: QuotaVisibility
+  reviewOverdueHours: number
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -64,6 +65,7 @@ export const DEFAULT_SETTINGS: Settings = {
   quietStart: '22:00',
   quietEnd: '08:00',
   quotaVisibility: 'low',
+  reviewOverdueHours: 24,
 }
 
 const isStringRecord = (value: unknown): value is Record<string, string> =>
@@ -111,6 +113,7 @@ export function normalizeSettings(raw: Record<string, unknown>): Settings {
     quietStart: pick('quietStart', isClockTime),
     quietEnd: pick('quietEnd', isClockTime),
     quotaVisibility: pick('quotaVisibility', (value) => QUOTA_VISIBILITY.includes(value as QuotaVisibility)),
+    reviewOverdueHours: pick('reviewOverdueHours', isCount),
   }
 }
 

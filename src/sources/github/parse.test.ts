@@ -110,5 +110,19 @@ describe('parseResponse', () => {
     const bare = withData({ viewer: { login: 'a' } })
     expect(parseResponse(bare, RESET).profile).toEqual({ followers: 0, stars: 0, starsAreExact: true })
   })
+
+  it('tells pull requests and issues apart in the mixed searches', () => {
+    const { mentions } = parseResponse(response, RESET).searches
+    expect(mentions.map((item) => [item.number, item.type])).toEqual([
+      [51, 'issue'],
+      [52, 'pr'],
+    ])
+  })
+
+  it('reads the review decision and whether a pull request can merge', () => {
+    const node = { number: 9, title: 'T', url: 'https://github.com/a/b/pull/9', createdAt: '2026-10-14T09:00:00Z', author: { login: 'a' }, repository: { nameWithOwner: 'a/b' }, reviewDecision: 'APPROVED', mergeable: 'CONFLICTING' }
+    const [item] = parseResponse(withData({ myPullRequests: { issueCount: 1, nodes: [node] } }), RESET).searches.myPullRequests
+    expect(item).toMatchObject({ reviewDecision: 'APPROVED', mergeable: 'CONFLICTING' })
+  })
 })
 

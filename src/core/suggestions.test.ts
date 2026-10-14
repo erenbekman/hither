@@ -77,13 +77,16 @@ describe('suggest', () => {
         base({ id: 'ci:a', lane: 'outgoing', kind: 'ci-failed', meta: { number: 42 }, url: 'https://github.com/acme/api/pull/42/checks' }),
         base({ id: 'b', kind: 'changes-requested', meta: { number: 43 } }),
         base({ id: 'c', lane: 'agents', kind: 'agent-pr-ready', meta: { number: 44 } }),
+        base({ id: 'd', kind: 'conflicting', meta: { number: 45 } }),
       ]),
     )
     expect(cards.map((c) => [c.rule, c.actions[0].kind])).toEqual([
       ['ci-failed', 'claude'],
       ['changes-requested', 'claude'],
+      ['conflicting', 'claude'],
       ['agent-pr-ready', 'summarize'],
     ])
+    expect(cards[2].actions[0]).toMatchObject({ template: 'merge-conflicts', vars: { repo: 'acme/api', number: '45' } })
     expect(cards[0].actions[0]).toMatchObject({ vars: { repo: 'acme/api', number: '42' } })
   })
 

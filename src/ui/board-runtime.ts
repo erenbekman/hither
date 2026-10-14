@@ -14,7 +14,7 @@ import { applyHookEvent, pruneSessions, restoreSessions, type HookEvent, type Se
 import { DEFAULT_SETTINGS, isRepoWatched, muteRepo, type Settings } from '../core/settings'
 import type { Signal, Source } from '../core/types'
 import { describe, isAmbient, isLoud, LANE_ORDER, sourceLanes } from '../lanes'
-import { copyText, focusTerminal, ghToken, openUrl, revealPanel, secretGet, setBadge, startHookListener } from '../native'
+import { checkoutPullRequest, copyText, focusTerminal, ghToken, openUrl, revealPanel, secretGet, setBadge, startHookListener } from '../native'
 import { AGENT_SOURCE_ID, claudeCodeSource } from '../sources/claude-code'
 import { CI_RECOVERY, githubSource } from '../sources/github'
 import { countRepos } from '../sources/github/account'
@@ -115,18 +115,36 @@ export function startBoard() {
     else await board?.refresh()
   }
 
-  async function showMenu(targets: Signal[]) {
+  async function showMenu(targets: Signal[], folders: Record<string, string>) {
     const [first] = targets
     if (!first) return
-    const link = targets.length === 1 ? first.url : undefined
+    const single = targets.length === 1 ? first : undefined
+    const branch = typeof single?.meta?.branch === 'string' ? single.meta.branch : undefined
+    const number = single?.source === 'github' && single.meta?.type !== 'issue' && typeof single.meta?.number === 'number' ? single.meta.number : undefined
+    const folder = number !== undefined ? folders[first.project] : undefined
+    const terminal = current.value.terminal
     const repo =
       targets.every((s) => s.source === 'github' && s.project === first.project) && isRepoWatched(current.value, first.project) ? first.project : undefined
     const run = (task: () => Promise<unknown> | undefined) => () => void Promise.resolve(task()).catch((error) => report('menu', error))
+    const separator = { item: 'Separator' as const }
+    const copies = [
+      ...(single?.url ? [{ text: 'Copy Link', action: run(() => copyText(single.url!)) }] : []),
+      ...(branch ? [{ text: 'Copy Branch', action: run(() => copyText(branch)) }] : []),
+    ]
+    const checkout =
+      number === undefined
+        ? []
+        : folder
+          ? [{ text: `Checkout in ${terminal}`, action: run(() => checkoutPullRequest(folder, number, terminal)) }]
+          : [{ text: `Checkout in ${terminal} (folder of ${first.project} unknown)`, enabled: false }]
     const menu = await Menu.new({
       items: [
-        ...(link ? [{ text: 'Copy Link', action: run(() => copyText(link)) }, { item: 'Separator' as const }] : []),
+        ...copies,
+        ...(copies.length > 0 ? [separator] : []),
+        ...checkout,
+        ...(checkout.length > 0 ? [separator] : []),
         {
-          text: targets.length === 1 ? 'Snooze for a Day' : `Snooze ${targets.length} Items for a Day`,
+          text: single ? 'Snooze for a Day' : `Snooze ${targets.length} Items for a Day`,
           action: run(() => board?.snooze(targets.map((s) => s.id), new Date(Date.now() + SNOOZE_MS))),
         },
         ...(repo ? [{ text: `Mute ${repo}`, action: run(() => mute(repo)) }] : []),
@@ -257,7 +275,7 @@ export function startBoard() {
     hooks,
     installAgentHooks,
     open,
-    showMenu: (targets: Signal[]) => void showMenu(targets).catch((error) => report('menu', error)),
+    showMenu: (targets: Signal[], folders: Record<string, string>) => void showMenu(targets, folders).catch((error) => report('menu', error)),
     refresh: () => board?.refresh(),
     markSeen: (ids: string[]) => board?.markSeen(ids),
   }

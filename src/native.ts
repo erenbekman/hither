@@ -20,6 +20,8 @@ export const launchClaude = (folder: string, prompt: string, attachment: string 
   invoke<void>('launch_claude', { folder, prompt, attachment: attachment ?? null, terminal })
 export const claudePrint = (folder: string | undefined, prompt: string) => invoke<string>('claude_print', { folder: folder ?? null, prompt })
 export const focusTerminal = (terminal: string) => invoke<void>('focus_terminal', { terminal })
+export const checkoutPullRequest = (folder: string, number: number, terminal: string) =>
+  invoke<void>('checkout_pr', { folder, number, terminal })
 export const syncTemplates = (defaults: Record<string, string>) => invoke<Record<string, string>>('sync_templates', { defaults })
 export const openTemplates = () => invoke<void>('open_templates')
 export const restartApp = () => invoke<void>('restart_app')

@@ -85,15 +85,47 @@ pub async fn git_repo(path: String) -> Option<GitRepo> {
     .flatten()
 }
 
+fn check_folder(folder: &str) -> Result<(), String> {
+    (Path::new(folder).is_absolute() && Path::new(folder).is_dir()).then_some(()).ok_or_else(|| format!("{folder} is not a folder"))
+}
+
+fn scratch_dir() -> Result<PathBuf, String> {
+    let dir = std::env::temp_dir().join("hither");
+    fs::DirBuilder::new().recursive(true).mode(0o700).create(&dir).map_err(|e| e.to_string())?;
+    Ok(dir)
+}
+
+fn open_script(terminal: &str, script: &Path, text: &str) -> Result<(), String> {
+    private_file(script, text, 0o700).map_err(|e| e.to_string())?;
+    let status = Command::new("/usr/bin/open").args(["-a", terminal]).arg(script).status().map_err(|e| e.to_string())?;
+    status.success().then_some(()).ok_or_else(|| format!("{terminal} could not be opened"))
+}
+
+fn checkout_script(folder: &str, gh: &str, number: u32, script: &Path) -> String {
+    format!(
+        "#!/bin/zsh -l\ncd -- {} || exit 1\nrm -f -- {}\n{} pr checkout {number}\nexec \"${{SHELL:-/bin/zsh}}\" -l\n",
+        quote(folder),
+        quote(&script.display().to_string()),
+        quote(gh)
+    )
+}
+
+#[tauri::command]
+pub fn checkout_pr(folder: String, number: u32, terminal: String) -> Result<(), String> {
+    let terminal = terminal_app(&terminal)?;
+    check_folder(&folder)?;
+    let gh = crate::gh::gh_path().ok_or_else(|| "GitHub CLI not found".to_string())?;
+    let stamp = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0);
+    let script = scratch_dir()?.join(format!("checkout-{stamp}.command"));
+    open_script(terminal, &script, &checkout_script(&folder, &gh, number, &script))
+}
+
 #[tauri::command]
 pub fn launch_claude(folder: String, prompt: String, attachment: Option<String>, terminal: String) -> Result<(), String> {
     let terminal = terminal_app(&terminal)?;
-    if !Path::new(&folder).is_absolute() || !Path::new(&folder).is_dir() {
-        return Err(format!("{folder} is not a folder"));
-    }
+    check_folder(&folder)?;
     let claude = claude_path()?;
-    let dir = std::env::temp_dir().join("hither");
-    fs::DirBuilder::new().recursive(true).mode(0o700).create(&dir).map_err(|e| e.to_string())?;
+    let dir = scratch_dir()?;
     let stamp = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0);
     let prompt = match attachment {
         Some(text) => {
@@ -106,9 +138,7 @@ pub fn launch_claude(folder: String, prompt: String, attachment: Option<String>,
     let prompt_file = dir.join(format!("prompt-{stamp}.md"));
     let script = dir.join(format!("launch-{stamp}.command"));
     private_file(&prompt_file, &prompt, 0o600).map_err(|e| e.to_string())?;
-    private_file(&script, &launcher(&folder, &claude, &prompt_file, &script), 0o700).map_err(|e| e.to_string())?;
-    let status = Command::new("/usr/bin/open").args(["-a", terminal]).arg(&script).status().map_err(|e| e.to_string())?;
-    status.success().then_some(()).ok_or_else(|| format!("{terminal} could not be opened"))
+    open_script(terminal, &script, &launcher(&folder, &claude, &prompt_file, &script))
 }
 
 #[tauri::command]
@@ -180,6 +210,22 @@ mod tests {
         assert_eq!(terminal_app("Ghostty"), Ok("Ghostty"));
         assert!(terminal_app("Calculator").is_err());
         assert!(terminal_app("/Applications/iTerm.app").is_err());
+    }
+
+    #[test]
+    fn checkout_script_runs_gh_in_the_folder_and_removes_itself() {
+        let dir = std::env::temp_dir().join(format!("hither-checkout-test-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        let script = dir.join("checkout.command");
+        let fake_gh = dir.join("fake-gh");
+        fs::write(&fake_gh, "#!/bin/sh\nprintf '%s ' \"$@\" > \"$PWD/received\"\n").unwrap();
+        fs::set_permissions(&fake_gh, std::os::unix::fs::PermissionsExt::from_mode(0o755)).unwrap();
+        fs::write(&script, checkout_script(dir.to_str().unwrap(), fake_gh.to_str().unwrap(), 42, &script)).unwrap();
+        let status = Command::new("/bin/zsh").arg("-f").arg(&script).env("SHELL", "/usr/bin/true").status().unwrap();
+        assert!(status.success());
+        assert_eq!(fs::read_to_string(dir.join("received")).unwrap(), "pr checkout 42 ");
+        assert!(!script.exists());
     }
 
     #[test]

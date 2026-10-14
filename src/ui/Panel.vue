@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
 import { ago } from '../core/format'
-import type { Lane } from '../core/types'
+import type { Lane, Signal } from '../core/types'
 import { openSettings, openUrl } from '../native'
 import { isQuotaLow, showsQuota } from '../sources/github/account'
 import { startBoard } from './board-runtime'
@@ -167,7 +167,8 @@ const showHookBanner = computed(() => view.tab === 'agents' && board.hooks.statu
       :now="now"
       :open="board.open"
       :mark-seen="board.markSeen"
-      :show-menu="board.showMenu"
+      :show-menu="(signals: Signal[]) => board.showMenu(signals, suggestions.state.folders)"
+      :overdue-hours="board.settings().reviewOverdueHours"
       :empty="EMPTY[view.tab]"
     />
     <SuggestionsView

@@ -27,11 +27,14 @@ fn token_from(command: Command) -> Result<String, GhError> {
     Ok(token)
 }
 
-fn read_token() -> Result<String, GhError> {
+pub fn gh_path() -> Option<String> {
     let known = ["/opt/homebrew/bin/gh".to_string(), "/usr/local/bin/gh".to_string()];
     let path_env = std::env::var("PATH").ok();
-    let executable = locate("gh", &known, is_executable, path_env.as_deref()).ok_or(GhError::GhNotFound)?;
-    let mut command = Command::new(executable);
+    locate("gh", &known, is_executable, path_env.as_deref())
+}
+
+fn read_token() -> Result<String, GhError> {
+    let mut command = Command::new(gh_path().ok_or(GhError::GhNotFound)?);
     command.args(["auth", "token", "--hostname", "github.com"]);
     token_from(command)
 }

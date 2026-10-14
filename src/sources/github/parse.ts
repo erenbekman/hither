@@ -1,7 +1,8 @@
 import type { AppError } from '../../core/errors'
 import type { Profile } from '../../core/types'
 
-export const SEARCH_KEYS = ['prs', 'issues', 'review', 'changesRequested', 'myPullRequests'] as const
+export const SEARCH_KEYS = ['prs', 'issues', 'review', 'changesRequested', 'myPullRequests', 'mentions', 'assigned'] as const
+export const MIXED_SEARCHES: readonly SearchKey[] = ['mentions', 'assigned']
 export type SearchKey = (typeof SEARCH_KEYS)[number]
 
 export const SEARCH_LIMIT = 100
@@ -19,6 +20,8 @@ export interface Item {
   authorAvatar?: string
   headRef?: string
   ci?: string
+  reviewDecision?: string
+  mergeable?: string
 }
 
 export interface Branch {
@@ -93,8 +96,8 @@ export function parseResponse(root: unknown, rateLimitResetAt: string, watched: 
     }
     if (typeof result.issueCount === 'number' && result.issueCount > SEARCH_LIMIT) truncated.push(key)
     const nodes = Array.isArray(result.nodes) ? result.nodes : []
-    const type = key === 'issues' ? 'issue' : 'pr'
     return nodes.filter(isObject).flatMap((node) => {
+      const type = key === 'issues' || (MIXED_SEARCHES.includes(key) && node.__typename === 'Issue') ? 'issue' : 'pr'
       const item = toItem(node, type)
       return item ? [item] : []
     })
@@ -160,6 +163,8 @@ function toItem(node: Json, type: Item['type']): Item | undefined {
     authorAvatar: typeof author.avatarUrl === 'string' ? author.avatarUrl : undefined,
     headRef: typeof node.headRefName === 'string' ? node.headRefName : undefined,
     ci: rollupState(lastNode(node.commits)?.commit),
+    reviewDecision: typeof node.reviewDecision === 'string' ? node.reviewDecision : undefined,
+    mergeable: typeof node.mergeable === 'string' ? node.mergeable : undefined,
   }
 }
 

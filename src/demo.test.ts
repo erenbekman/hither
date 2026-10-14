@@ -19,7 +19,7 @@ describe('demo data', () => {
       ),
     )
     expect([...rules].sort()).toEqual(
-      ['agent-pr-ready', 'agent-waiting', 'changes-requested', 'ci-failed', 'deploy-errors', 'deploy-failed', 'main-failed', 'stale-pr'].sort(),
+      ['agent-pr-ready', 'agent-waiting', 'changes-requested', 'ci-failed', 'conflicting', 'deploy-errors', 'deploy-failed', 'main-failed', 'stale-pr'].sort(),
     )
   })
 })

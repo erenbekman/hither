@@ -4,7 +4,7 @@ import type { BoardState } from '../core/board'
 import type { Section } from '../core/filtering'
 import { ago } from '../core/format'
 import type { Lane, Signal } from '../core/types'
-import { SECTION_TITLES, subtitle } from '../lanes'
+import { isOverdue, SECTION_TITLES, subtitle } from '../lanes'
 import Banner from './components/Banner.vue'
 import Mark from './components/Mark.vue'
 import SectionHeader from './components/SectionHeader.vue'
@@ -17,6 +17,7 @@ const props = defineProps<{
   open: (id: string, url: string | undefined) => void
   markSeen: (ids: string[]) => void
   showMenu: (signals: Signal[]) => void
+  overdueHours: number
   empty: string
 }>()
 
@@ -69,6 +70,7 @@ const strongest = (signals: Signal[]): Signal['severity'] =>
             :severity="row.signal.severity"
             :unseen="!!state.unseen[row.signal.id]"
             :avatar="avatarOf(row.signal)"
+            :overdue="isOverdue(row.signal, now, overdueHours)"
             @activate="open(row.signal.id, row.signal.url)"
             @menu="showMenu([row.signal])"
           />
@@ -95,6 +97,7 @@ const strongest = (signals: Signal[]): Signal['severity'] =>
                 :severity="signal.severity"
                 :unseen="!!state.unseen[signal.id]"
                 :avatar="avatarOf(signal)"
+                :overdue="isOverdue(signal, now, overdueHours)"
                 @activate="open(signal.id, signal.url)"
                 @menu="showMenu([signal])"
               />

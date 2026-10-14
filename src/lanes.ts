@@ -39,6 +39,10 @@ export function isLoud(signal: Signal): boolean {
   return signal.severity !== 'info'
 }
 
+export function isOverdue(signal: Signal, now: Date, hours: number): boolean {
+  return signal.kind === 'review-requested' && hours > 0 && now.getTime() - Date.parse(signal.at) >= hours * 3_600_000
+}
+
 export function isAmbient(signal: Signal): boolean {
   return signal.source === AGENT_SOURCE_ID && signal.kind === 'agent-done'
 }

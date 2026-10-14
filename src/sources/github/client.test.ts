@@ -9,6 +9,8 @@ const queries: Queries = {
   review: 'R',
   changesRequested: 'C',
   myPullRequests: 'M',
+  mentions: 'X',
+  assigned: 'A',
   filtersDropped: false,
   allowListEmpty: false,
 }
@@ -21,7 +23,11 @@ describe('buildRequest', () => {
     expect((request.headers as Record<string, string>).Authorization).toBe('Bearer secret-token')
     expect(request.signal).toBeInstanceOf(AbortSignal)
     const { variables } = JSON.parse(request.body as string)
-    expect(variables).toEqual({ prs: 'P', issues: 'I', review: 'R', changesRequested: 'C', myPullRequests: 'M', first: 100 })
+    expect(variables).toEqual({ prs: 'P', issues: 'I', review: 'R', changesRequested: 'C', myPullRequests: 'M', mentions: 'X', assigned: 'A', first: 100 })
+    const { query } = JSON.parse(request.body as string)
+    expect(query).toContain('mentions: search(query: $mentions')
+    expect(query).toContain('... on Issue {')
+    expect(query).toContain('reviewDecision mergeable')
   })
 })
 

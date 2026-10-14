@@ -165,6 +165,7 @@ pub fn run() {
             hooks::claude_settings_write,
             launch::git_repo,
             launch::launch_claude,
+            launch::checkout_pr,
             launch::claude_print,
             launch::focus_terminal,
             launch::sync_templates,

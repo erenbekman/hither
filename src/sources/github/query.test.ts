@@ -96,4 +96,15 @@ describe('buildQueries', () => {
     expect(q.prs.endsWith(' sort:created-desc')).toBe(true)
     expect(q.filtersDropped).toBe(true)
   })
+
+  it('searches mentions and assignments within the same scope', () => {
+    const q = build()
+    expect(q.mentions).toBe('is:open mentions:@me sort:created-desc')
+    expect(q.assigned).toBe('is:open assignee:@me sort:created-desc')
+    const org = build({ organizations: ['acme'], repoList: ['acme/noisy'] })
+    expect(org.mentions).toBe('is:open mentions:@me org:acme -repo:acme/noisy sort:created-desc')
+    const only = build({ repoList: ['acme/one'], repoListIsAllowList: true })
+    expect(only.assigned).toBe('is:open assignee:@me repo:acme/one sort:created-desc')
+  })
 })
+

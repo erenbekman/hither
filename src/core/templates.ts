@@ -31,6 +31,12 @@ Deploy edilen değişiklikleri git ile incele ve hatalarla ilişkisini açıkla.
 \`gh pr view {{number}} --repo {{repo}} --comments\` ve \`gh api repos/{{repo}}/pulls/{{number}}/comments\` ile review yorumlarını oku.
 Her yorumu madde madde ele alan bir plan çıkar.
 `,
+  'merge-conflicts': `Push etme, önce planı göster.
+
+{{repo}} reposundaki #{{number}} numaralı PR'ım base branch ile çakışıyor.
+\`gh pr view {{number}} --repo {{repo}} --json headRefName,baseRefName\` ile branch'leri bul, \`gh pr checkout {{number}}\` ile PR'a geç ve base branch'i merge et.
+Çakışmaları dosya dosya açıkla, her biri için çözümü öner ve uygulamadan önce bana göster.
+`,
   'agent-pr-summary': `{{repo}} reposundaki #{{number}} numaralı PR'ı \`gh pr view {{number}} --repo {{repo}}\` ve \`gh pr diff {{number}} --repo {{repo}}\` ile oku.
 En fazla 5 maddede ne değiştiğini özetle, ardından "Riskler" başlığıyla dikkat edilmesi gerekenleri listele. Kısa tut, Türkçe yaz.
 `,

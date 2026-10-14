@@ -36,6 +36,12 @@ describe('normalizeSettings', () => {
     expect(normalizeSettings({ notificationLanes: ['agents'] }).notificationLanes).toEqual(['agents'])
   })
 
+  it('accepts whole hours for overdue reviews, zero meaning never', () => {
+    expect(normalizeSettings({}).reviewOverdueHours).toBe(24)
+    expect(normalizeSettings({ reviewOverdueHours: 0 }).reviewOverdueHours).toBe(0)
+    expect(normalizeSettings({ reviewOverdueHours: 1.5 }).reviewOverdueHours).toBe(24)
+  })
+
   it('keeps only a supported terminal', () => {
     expect(normalizeSettings({ terminal: 'Ghostty' }).terminal).toBe('Ghostty')
     expect(normalizeSettings({ terminal: 'Hyper' }).terminal).toBe('iTerm')

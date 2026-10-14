@@ -15,9 +15,13 @@ describe('githubSource', () => {
     expect(result.profile).toMatchObject({ name: 'Bob Builder', followers: 42 })
     expect(result.quota).toEqual({ limit: 5000, remaining: 4990, resetAt: '2026-10-14T13:00:00Z' })
     const counts = Object.fromEntries(
-      ['pr', 'issue', 'review-requested', 'changes-requested', 'my-pr'].map((kind) => [kind, result.signals.filter((s) => s.kind === kind).length]),
+      ['pr', 'issue', 'review-requested', 'changes-requested', 'my-pr', 'mentioned', 'assigned'].map((kind) => [
+        kind,
+        result.signals.filter((s) => s.kind === kind).length,
+      ]),
     )
-    expect(counts).toEqual({ pr: 3, issue: 1, 'review-requested': 1, 'changes-requested': 1, 'my-pr': 2 })
+    expect(counts).toEqual({ pr: 3, issue: 1, 'review-requested': 1, 'changes-requested': 1, 'my-pr': 2, mentioned: 2, assigned: 0 })
+    expect(result.signals.find((s) => s.kind === 'mentioned' && s.meta?.number === 51)?.meta?.type).toBe('issue')
     const review = result.signals.find((s) => s.kind === 'review-requested')
     expect(review).toMatchObject({ lane: 'incoming', severity: 'attention', project: 'bob/tools', actor: 'frank' })
     expect(result.signals.find((s) => s.kind === 'pr')?.meta).toHaveProperty('avatar')
@@ -83,4 +87,44 @@ describe('githubSource', () => {
     ])
     expect(result.signals.filter((s) => s.lane === 'incoming')).toEqual([])
   })
+
+  it('splits your pull requests into ready to merge, conflicts and the rest', async () => {
+    const mine = (number: number, extra: Record<string, unknown>) => ({
+      number,
+      title: `Mine ${number}`,
+      url: `https://github.com/bob/tools/pull/${number}`,
+      createdAt: '2026-10-14T09:00:00Z',
+      isDraft: false,
+      headRefName: `feature/${number}`,
+      author: { login: 'bob', __typename: 'User' },
+      repository: { nameWithOwner: 'bob/tools' },
+      commits: { nodes: [{ commit: { statusCheckRollup: { state: 'SUCCESS' } } }] },
+      reviewDecision: 'APPROVED',
+      mergeable: 'MERGEABLE',
+      ...extra,
+    })
+    const body = withData({
+      myPullRequests: {
+        issueCount: 5,
+        nodes: [
+          mine(80, {}),
+          mine(81, { mergeable: 'CONFLICTING', reviewDecision: null }),
+          mine(82, { commits: { nodes: [{ commit: { statusCheckRollup: { state: 'PENDING' } } }] } }),
+          mine(83, { isDraft: true }),
+          mine(84, { reviewDecision: 'REVIEW_REQUIRED' }),
+        ],
+      },
+    })
+    const result = await githubSource({ token: async () => 't', settings: () => DEFAULT_SETTINGS, fetchFn: answer(body) }).poll(ctx)
+    const incoming = result.signals.filter((s) => s.lane === 'incoming')
+    expect(incoming.map((s) => [s.meta?.number, s.kind, s.severity])).toEqual([
+      [80, 'ready-to-merge', 'info'],
+      [81, 'conflicting', 'attention'],
+      [82, 'my-pr', 'info'],
+      [83, 'my-pr', 'info'],
+      [84, 'my-pr', 'info'],
+    ])
+    expect(incoming[0].meta?.branch).toBe('feature/80')
+  })
 })
+

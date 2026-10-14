@@ -24,11 +24,12 @@ function githubSignals(now: Date): Signal[] {
     url: `https://github.com/acme/api/pull/${number}`,
     actor,
     at: minutesAgo(now, minutes),
-    meta: { number, type: 'pr', isDraft: false, isBot: false },
+    meta: { number, type: 'pr', isDraft: false, isBot: false, branch: `feature/${number}` },
     ...extra,
   })
   return [
     pr(418, 'review-requested', 'Add rate limit to webhook deliveries', 'carol', 120),
+    pr(392, 'review-requested', 'Drop the legacy CSV importer', 'grace', 30 * 60),
     pr(402, 'changes-requested', 'Move invoices to the queue', 'eren', 300),
     pr(411, 'pr', 'Fix timezone in invoice export', 'dave', 26 * 60, { project: 'acme/billing', id: 'https://github.com/acme/billing/pull/411', url: 'https://github.com/acme/billing/pull/411' }),
     pr(395, 'pr', 'Translate onboarding emails', 'erin', 5 * 24 * 60, { project: 'acme/web', id: 'https://github.com/acme/web/pull/395', url: 'https://github.com/acme/web/pull/395' }),
@@ -38,6 +39,14 @@ function githubSignals(now: Date): Signal[] {
       url: 'https://github.com/acme/billing/issues/406',
       meta: { number: 406, type: 'issue', isDraft: false, isBot: false },
     }),
+    pr(421, 'conflicting', 'Split the billing worker into two queues', 'eren', 90, { severity: 'attention' }),
+    pr(415, 'ready-to-merge', 'Retry failed webhooks with backoff', 'eren', 200),
+    pr(409, 'assigned', 'Webhook signatures fail behind the proxy', 'grace', 10 * 60, {
+      id: 'https://github.com/acme/api/issues/409',
+      url: 'https://github.com/acme/api/issues/409',
+      meta: { number: 409, type: 'issue', isDraft: false, isBot: false },
+    }),
+    pr(420, 'mentioned', 'Pick a queue for invoice exports', 'heidi', 45, { project: 'acme/billing', id: 'https://github.com/acme/billing/pull/420', url: 'https://github.com/acme/billing/pull/420' }),
     pr(399, 'my-pr', 'Cache feature flags per request', 'eren', 7 * 60),
     {
       id: 'ci:https://github.com/acme/api/pull/399',
