@@ -1,6 +1,7 @@
 import type { AppError } from '../../core/errors'
 import { getJson } from '../../core/http'
 import type { Settings } from '../../core/settings'
+import { githubRepo } from '../../core/repo'
 import type { PollResult, Signal, Source } from '../../core/types'
 
 export const FORGE_API = 'https://forge.laravel.com/api'
@@ -16,6 +17,7 @@ const text = (value: unknown) => (typeof value === 'string' && value.length > 0 
 
 export interface Deployment {
   id: string
+  serverId?: string
   status: string
   siteId?: string
   hash?: string
@@ -30,6 +32,7 @@ export interface Deployment {
 export interface Site {
   name: string
   url: string
+  repo?: string
 }
 
 export function siteUrl(attributes: Json): string {
@@ -39,7 +42,7 @@ export function siteUrl(attributes: Json): string {
   return `${attributes.https === false ? 'http' : 'https'}://${url}`
 }
 
-export function parseDeployments(body: unknown): { deployments: Deployment[]; sites: Map<string, Site> } {
+export function parseDeployments(body: unknown, serverId?: string): { deployments: Deployment[]; sites: Map<string, Site> } {
   const root = isObject(body) ? body : {}
   const data = Array.isArray(root.data) ? root.data.filter(isObject) : []
   const included = Array.isArray(root.included) ? root.included.filter(isObject) : []
@@ -47,7 +50,12 @@ export function parseDeployments(body: unknown): { deployments: Deployment[]; si
   const sites = new Map<string, Site>()
   for (const resource of included) {
     if (resource.type !== 'sites' || typeof resource.id !== 'string' || !isObject(resource.attributes)) continue
-    sites.set(resource.id, { name: text(resource.attributes.name) ?? resource.id, url: siteUrl(resource.attributes) })
+    const repository = isObject(resource.attributes.repository) ? resource.attributes.repository : {}
+    sites.set(resource.id, {
+      name: text(resource.attributes.name) ?? resource.id,
+      url: siteUrl(resource.attributes),
+      repo: githubRepo(text(repository.url)),
+    })
   }
 
   const deployments = data.flatMap((resource): Deployment[] => {
@@ -58,6 +66,7 @@ export function parseDeployments(body: unknown): { deployments: Deployment[]; si
     return [
       {
         id: String(resource.id),
+        serverId,
         status: attributes.status,
         siteId: isObject(site) && site.id !== undefined ? String(site.id) : undefined,
         hash: text(commit.hash),
@@ -107,7 +116,16 @@ export function deploymentSignals(deployments: Deployment[], sites: Map<string, 
         url: site.url || undefined,
         actor: deployment.author,
         at,
-        meta: { status: deployment.status, hash: deployment.hash?.slice(0, 7), branch: deployment.branch },
+        meta: {
+          status: deployment.status,
+          hash: deployment.hash?.slice(0, 7),
+          sha: deployment.hash,
+          branch: deployment.branch,
+          repo: site.repo,
+          serverId: deployment.serverId,
+          siteId,
+          deploymentId: deployment.id,
+        },
       },
     ]
   })
@@ -149,8 +167,8 @@ export function forgeSource(deps: {
       )
       const deployments: Deployment[] = []
       const sites = new Map<string, Site>()
-      for (const page of pages) {
-        const parsed = parseDeployments(page)
+      for (const [i, page] of pages.entries()) {
+        const parsed = parseDeployments(page, forgeServers[i])
         deployments.push(...parsed.deployments)
         for (const [id, site] of parsed.sites) sites.set(id, site)
       }
@@ -177,4 +195,17 @@ export async function listForgeServers(token: string, org: string, fetchFn: type
     const attributes = isObject(server.attributes) ? server.attributes : {}
     return [{ id: String(server.id), name: text(attributes.name) ?? String(server.id) }]
   })
+}
+
+export async function fetchDeploymentLog(
+  token: string,
+  org: string,
+  ids: { serverId: string; siteId: string; deploymentId: string },
+  fetchFn: typeof fetch,
+): Promise<string> {
+  const path = [org, 'servers', ids.serverId, 'sites', ids.siteId, 'deployments', ids.deploymentId].map(encodeURIComponent)
+  const body = await getJson('Forge', `${FORGE_API}/orgs/${path.join('/')}/log`, token, { fetchFn })
+  const data = isObject(body) && isObject(body.data) ? body.data : {}
+  const attributes = isObject(data.attributes) ? data.attributes : {}
+  return text(attributes.output) ?? ''
 }

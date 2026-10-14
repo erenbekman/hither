@@ -18,7 +18,11 @@ const deployment = (id: number, site: string, status: string, endedMinutesAgo: n
   relationships: { site: { data: { id: site, type: 'sites' } } },
 })
 
-const site = (id: string, name: string, url = `https://${name}`) => ({ id, type: 'sites', attributes: { name, url, https: true } })
+const site = (id: string, name: string, url = `https://${name}`) => ({
+  id,
+  type: 'sites',
+  attributes: { name, url, https: true, repository: { provider: 'github', url: `git@github.com:eren/${name}.git`, branch: 'main' } },
+})
 
 const body = {
   data: [deployment(3, '1', 'failed', 5), deployment(2, '1', 'finished', 60), deployment(9, '2', 'finished', 10), deployment(7, '3', 'finished', 90)],
@@ -30,7 +34,7 @@ describe('parseDeployments', () => {
     const { deployments, sites } = parseDeployments(body)
     expect(deployments).toHaveLength(4)
     expect(deployments[0]).toMatchObject({ id: '3', status: 'failed', siteId: '1', message: 'Release 3', author: 'Eren' })
-    expect(sites.get('2')).toEqual({ name: 'medvise.app', url: 'https://medvise.app' })
+    expect(sites.get('2')).toEqual({ name: 'medvise.app', url: 'https://medvise.app', repo: 'eren/medvise.app' })
   })
 
   it('survives a body without data', () => {
@@ -54,7 +58,12 @@ describe('deploymentSignals', () => {
       ['ustad.app', 'deploy-failed', 'critical'],
       ['medvise.app', 'deploy-ok', 'info'],
     ])
-    expect(signals[0]).toMatchObject({ id: 'forge:deploy:3', url: 'https://ustad.app', title: 'Release 3', meta: { hash: 'abcdef3' } })
+    expect(signals[0]).toMatchObject({
+      id: 'forge:deploy:3',
+      url: 'https://ustad.app',
+      title: 'Release 3',
+      meta: { hash: 'abcdef3', sha: 'abcdef3123', repo: 'eren/ustad.app', siteId: '1', deploymentId: '3' },
+    })
   })
 
   it('drops a successful deployment after thirty minutes', () => {
