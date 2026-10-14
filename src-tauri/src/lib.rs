@@ -55,7 +55,7 @@ fn set_badge(app: AppHandle, count: u32) {
 
 #[tauri::command]
 async fn open_url(url: String) -> Result<(), String> {
-    if !url.starts_with("https://github.com/") {
+    if !(url.starts_with("https://") || url.starts_with("http://")) {
         return Err(format!("refusing to open {url}"));
     }
     tauri::async_runtime::spawn_blocking(move || Command::new("/usr/bin/open").arg(url).status())
@@ -115,6 +115,7 @@ pub fn run() {
         .plugin(tauri_plugin_positioner::init())
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_http::init())
         .manage(LastHidden(Mutex::new(None)))
         .invoke_handler(tauri::generate_handler![
             gh::gh_token,

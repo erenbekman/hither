@@ -16,6 +16,7 @@ tauri = { version = "2", features = ["tray-icon", "image-png"] }
 tauri-plugin-positioner = { version = "2", features = ["tray-icon"] }
 tauri-plugin-store = "2"
 tauri-plugin-notification = "2"
+tauri-plugin-http = "2"
 keyring = { version = "3", features = ["apple-native"] }
 serde = { version = "1", features = ["derive"] }
 
