@@ -15,6 +15,7 @@ export interface Item {
   isDraft: boolean
   authorLogin: string
   authorIsBot: boolean
+  authorAvatar?: string
   headRef?: string
   ci?: string
 }
@@ -142,6 +143,7 @@ function toItem(node: Json, type: Item['type']): Item | undefined {
     isDraft: node.isDraft === true,
     authorLogin: author.login,
     authorIsBot: author.__typename === 'Bot' || author.login.endsWith('[bot]'),
+    authorAvatar: typeof author.avatarUrl === 'string' ? author.avatarUrl : undefined,
     headRef: typeof node.headRefName === 'string' ? node.headRefName : undefined,
     ci: rollupState(lastNode(node.commits)?.commit),
   }

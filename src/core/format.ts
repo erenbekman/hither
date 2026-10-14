@@ -11,3 +11,9 @@ export function ago(at: string | Date, now: Date): string {
   if (elapsed < 365 * DAY) return `${Math.floor(elapsed / (30 * DAY))}mo`
   return `${Math.floor(elapsed / (365 * DAY))}y`
 }
+
+export function hueFor(text: string): number {
+  let hash = 0
+  for (const char of text.toLowerCase()) hash = (hash * 31 + char.charCodeAt(0)) >>> 0
+  return hash % 360
+}

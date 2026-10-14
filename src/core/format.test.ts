@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { ago } from './format'
+import { ago, hueFor } from './format'
 
 const now = new Date('2026-10-14T12:00:00Z')
 const before = (ms: number) => new Date(now.getTime() - ms).toISOString()
@@ -16,5 +16,14 @@ describe('ago', () => {
 
   it('treats a date in the future as now', () => {
     expect(ago(before(-60_000), now)).toBe('now')
+  })
+})
+
+describe('hueFor', () => {
+  it('gives the same login the same hue, whatever the case', () => {
+    expect(hueFor('Carol')).toBe(hueFor('carol'))
+    expect(hueFor('carol')).toBeGreaterThanOrEqual(0)
+    expect(hueFor('carol')).toBeLessThan(360)
+    expect(hueFor('carol')).not.toBe(hueFor('dave'))
   })
 })

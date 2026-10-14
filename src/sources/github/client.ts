@@ -6,7 +6,7 @@ import type { Queries } from './query'
 export const ENDPOINT = 'https://api.github.com/graphql'
 export const TIMEOUT_MS = 15_000
 
-const itemFields = 'number title url createdAt author { login __typename } repository { nameWithOwner }'
+const itemFields = 'number title url createdAt author { login __typename avatarUrl(size: 48) } repository { nameWithOwner }'
 const rollup = 'statusCheckRollup { state }'
 const lastCommit = `commits(last: 1) { nodes { commit { ${rollup} } } }`
 const prSearch = (alias: string, withChecks: boolean) =>

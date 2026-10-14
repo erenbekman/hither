@@ -49,7 +49,7 @@ export function toSignal(item: Item, kind: GitHubKind): Signal {
     url: item.url,
     actor: item.authorLogin,
     at: item.createdAt,
-    meta: { number: item.number, type: item.type, isDraft: item.isDraft, isBot: item.authorIsBot },
+    meta: { number: item.number, type: item.type, isDraft: item.isDraft, isBot: item.authorIsBot, avatar: item.authorAvatar },
   }
 }
 
@@ -114,7 +114,7 @@ export function agentPullRequest(item: Item): Signal {
     url: item.url,
     actor: item.authorLogin,
     at: item.createdAt,
-    meta: { number: item.number, isDraft: item.isDraft, ci: item.ci, branch: item.headRef },
+    meta: { number: item.number, isDraft: item.isDraft, ci: item.ci, branch: item.headRef, avatar: item.authorAvatar },
   }
 }
 

@@ -32,6 +32,7 @@ describe('watched repositories', () => {
     expect(variables).toMatchObject({ w0o: 'acme', w0n: 'api', w1o: 'bob', w1n: 'site' })
     expect(query).toContain('w1: repository(owner: $w1o, name: $w1n)')
     expect(query).not.toContain('acme')
+    expect(query).toContain('author { login __typename avatarUrl(size: 48) }')
   })
 })
 

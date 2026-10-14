@@ -18,6 +18,7 @@ describe('githubSource', () => {
     expect(counts).toEqual({ pr: 3, issue: 1, 'review-requested': 1, 'changes-requested': 1, 'my-pr': 2 })
     const review = result.signals.find((s) => s.kind === 'review-requested')
     expect(review).toMatchObject({ lane: 'incoming', severity: 'attention', project: 'bob/tools', actor: 'frank' })
+    expect(result.signals.find((s) => s.kind === 'pr')?.meta).toHaveProperty('avatar')
   })
 
   it('reports truncation and partial errors as notices', async () => {

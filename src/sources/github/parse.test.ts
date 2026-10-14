@@ -91,4 +91,11 @@ describe('parseResponse', () => {
     expect(snapshot.missingRepos).toEqual(['bob/gone'])
     expect(snapshot.rateLimit.cost).toBe(1)
   })
+
+  it('reads the author avatar when GitHub sends one', () => {
+    const node = { ...response.data.prs.nodes[0], author: { login: 'carol', __typename: 'User', avatarUrl: 'https://avatars.githubusercontent.com/u/1?s=48' } }
+    const [item] = parseResponse(withData({ prs: { issueCount: 1, nodes: [node] } }), RESET).searches.prs
+    expect(item.authorAvatar).toBe('https://avatars.githubusercontent.com/u/1?s=48')
+    expect(parseResponse(response, RESET).searches.prs[0].authorAvatar).toBeUndefined()
+  })
 })
