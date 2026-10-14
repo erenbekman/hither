@@ -124,6 +124,14 @@ Claude Code `http` tipinde hook destekliyor: olayın JSON'unu doğrudan bir URL'
 
 Kurulum: "Hook'ları kur" butonu `~/.claude/settings.json` dosyasına kendi bloğunu **birleştirerek** ekler, önce yedek alır ve tek tıkla geri kaldırır. Dinleyici yalnızca `127.0.0.1`'e bağlanır ve header'daki rastgele token'ı kontrol eder.
 
+**Uygulandı (M3):**
+- Dinleyici `tiny_http`, `127.0.0.1:47811/hook`. Token 32 bayt rastgele, Keychain'de (`hook-token`); hook'larda `Authorization: Bearer …` header'ı olarak `~/.claude/settings.json`'a yazılır (dosya kullanıcıya ait, yerel). Hook `timeout` 5 sn; Claude Code bağlantı hatasını bloklamaz.
+- Abone olunan olaylar: `SessionStart`, `UserPromptSubmit`, `Notification`, `PostToolUse` (izin verildikten sonra "çalışıyor"a dönmek için), `Stop`, `StopFailure`, `SessionEnd`. Rust gelen JSON'dan yalnız kullanılan alanları alır; prompt metni ve tool girdileri webview'a hiç ulaşmaz.
+- Birleştirme/geri alma saf TS'te (`core/claude-settings.ts`): Hither'in hook'ları URL'leriyle tanınır, kullanıcının diğer hook'ları dokunulmadan kalır, kaldırma dosyayı birebir eski haline döndürür. Geçersiz JSON'lu dosyaya hiç yazılmaz. Her yazımdan önce `settings.json.hither-backup-<unix>` yedeği alınır; yazım geçici dosya + rename ile atomiktir.
+- Oturumlar `agents.json`'da tutulur; 12 saat olay gelmeyen oturum düşer.
+- Agent PR varsayılanları gerçek PR'lardan doğrulandı (14 Ekim 2026): GraphQL login'leri `claude`, `copilot-swe-agent`, `chatgpt-codex-connector`, `devin-ai-integration`, `google-labs-jules`, `cursor`; branch önekleri `claude/`, `copilot/`, `codex/`.
+- GraphQL maliyeti agent PR'ların check durumu eklenince 2 puana çıktı (son commit yalnız `prs` ve `myPullRequests` aramalarında okunur); 5 dk aralıkla saatte 24 puan = %0.48.
+
 Agent PR'ları: yazarı bilinen agent hesaplarından biri olan ya da `claude/` gibi agent branch önekiyle açılmış PR'lar bu şeride taşınır. Hesap listesi ayarlardan düzenlenir; varsayılan login adları M3'te gerçek PR'lardan doğrulanacak. Checks yeşil ve draft değilse durum "review'e hazır" olur.
 
 ## Claude Code öneri katmanı
