@@ -1,5 +1,6 @@
 use std::fs;
-use std::io::Read;
+use std::io::{Read, Write};
+use std::os::unix::fs::{DirBuilderExt, OpenOptionsExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -77,18 +78,23 @@ fn settings_path() -> Result<PathBuf, String> {
 }
 
 fn write_with_backup(path: &Path, content: &str, stamp: u64) -> std::io::Result<Option<PathBuf>> {
+    let mode = fs::metadata(path).map(|m| m.permissions().mode() & 0o600).unwrap_or(0o600);
     let backup = if path.exists() {
         let backup = path.with_file_name(format!("settings.json.hither-backup-{stamp}"));
         fs::copy(path, &backup)?;
         Some(backup)
     } else {
         if let Some(dir) = path.parent() {
-            fs::create_dir_all(dir)?;
+            fs::DirBuilder::new().recursive(true).mode(0o700).create(dir)?;
         }
         None
     };
     let temp = path.with_file_name("settings.json.hither-tmp");
-    fs::write(&temp, content)?;
+    let _ = fs::remove_file(&temp);
+    let mut file = fs::OpenOptions::new().write(true).create_new(true).mode(0o600).open(&temp)?;
+    file.write_all(content.as_bytes())?;
+    file.sync_all()?;
+    fs::set_permissions(&temp, fs::Permissions::from_mode(mode))?;
     fs::rename(&temp, path)?;
     Ok(backup)
 }
@@ -135,6 +141,29 @@ mod tests {
     fn creates_the_file_without_a_backup() {
         let path = scratch("create");
         assert_eq!(write_with_backup(&path, "{}", 1).unwrap(), None);
+        assert_eq!(fs::read_to_string(&path).unwrap(), "{}");
+        assert_eq!(fs::metadata(&path).unwrap().permissions().mode() & 0o777, 0o600);
+        assert_eq!(fs::metadata(path.parent().unwrap()).unwrap().permissions().mode() & 0o777, 0o700);
+    }
+
+    #[test]
+    fn never_widens_permissions() {
+        for (before, after) in [(0o600, 0o600), (0o644, 0o600), (0o400, 0o400)] {
+            let path = scratch(&format!("mode-{before:o}"));
+            fs::create_dir_all(path.parent().unwrap()).unwrap();
+            fs::write(&path, "{}").unwrap();
+            fs::set_permissions(&path, fs::Permissions::from_mode(before)).unwrap();
+            write_with_backup(&path, "{\"a\":1}", 7).unwrap();
+            assert_eq!(fs::metadata(&path).unwrap().permissions().mode() & 0o777, after);
+        }
+    }
+
+    #[test]
+    fn recovers_from_a_stale_temp_file() {
+        let path = scratch("stale");
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(path.with_file_name("settings.json.hither-tmp"), "junk").unwrap();
+        write_with_backup(&path, "{}", 3).unwrap();
         assert_eq!(fs::read_to_string(&path).unwrap(), "{}");
     }
 
