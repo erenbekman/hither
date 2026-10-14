@@ -31,6 +31,12 @@ function github(now: Date): Signal[] {
     pr(402, 'changes-requested', 'Move invoices to the queue', 'eren', 300),
     pr(411, 'pr', 'Fix timezone in invoice export', 'dave', 26 * 60, { project: 'acme/billing', id: 'https://github.com/acme/billing/pull/411', url: 'https://github.com/acme/billing/pull/411' }),
     pr(395, 'pr', 'Translate onboarding emails', 'erin', 5 * 24 * 60, { project: 'acme/web', id: 'https://github.com/acme/web/pull/395', url: 'https://github.com/acme/web/pull/395' }),
+    pr(406, 'issue', 'Export to CSV drops the last row', 'frank', 3 * 60, {
+      project: 'acme/billing',
+      id: 'https://github.com/acme/billing/issues/406',
+      url: 'https://github.com/acme/billing/issues/406',
+      meta: { number: 406, type: 'issue', isDraft: false, isBot: false },
+    }),
     pr(399, 'my-pr', 'Cache feature flags per request', 'eren', 7 * 60),
     {
       id: 'ci:https://github.com/acme/api/pull/399',
