@@ -10,6 +10,10 @@ describe('toAppError', () => {
     expect(toAppError({ kind: 'nope' })).toEqual({ kind: 'unknown', message: '[object Object]' })
   })
 
+  it('keeps an unknown error that already carries its message', () => {
+    expect(toAppError({ kind: 'unknown', message: 'port busy' })).toEqual({ kind: 'unknown', message: 'port busy' })
+  })
+
   it('wraps strings and Error instances', () => {
     expect(toAppError('keychain locked')).toEqual({ kind: 'unknown', message: 'keychain locked' })
     expect(toAppError(new Error('boom'))).toEqual({ kind: 'unknown', message: 'boom' })

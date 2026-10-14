@@ -18,6 +18,7 @@ export interface Settings {
   sentryProjects: string[]
   agentLogins: string[]
   agentBranchPrefixes: string[]
+  sentryProjectForSite: Record<string, string>
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -40,7 +41,11 @@ export const DEFAULT_SETTINGS: Settings = {
   sentryProjects: [],
   agentLogins: ['claude', 'copilot-swe-agent', 'chatgpt-codex-connector', 'devin-ai-integration', 'google-labs-jules', 'cursor'],
   agentBranchPrefixes: ['claude/', 'copilot/', 'codex/'],
+  sentryProjectForSite: {},
 }
+
+const isStringRecord = (value: unknown): value is Record<string, string> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value) && Object.values(value).every((v) => typeof v === 'string')
 
 const isStringList = (value: unknown): value is string[] =>
   Array.isArray(value) && value.every((entry) => typeof entry === 'string')
@@ -73,5 +78,6 @@ export function normalizeSettings(raw: Record<string, unknown>): Settings {
     sentryProjects: pick('sentryProjects', isStringList),
     agentLogins: pick('agentLogins', isStringList),
     agentBranchPrefixes: pick('agentBranchPrefixes', isStringList).filter((prefix) => prefix.length > 0),
+    sentryProjectForSite: pick('sentryProjectForSite', isStringRecord),
   }
 }

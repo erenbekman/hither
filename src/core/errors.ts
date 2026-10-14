@@ -32,6 +32,7 @@ const KNOWN_KINDS = new Set<string>([
   'service-status',
   'service-not-configured',
   'network',
+  'unknown',
 ])
 
 export function toAppError(error: unknown): AppError {
