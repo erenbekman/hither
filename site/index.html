@@ -3,152 +3,111 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Hither — PRs, deploys and agents in your menu bar</title>
-    <meta name="description" content="What's coming hither, what's gone thither — PRs, deploys and agents in your macOS menu bar." />
-    <meta name="color-scheme" content="light dark" />
-    <meta property="og:title" content="Hither" />
-    <meta property="og:description" content="What's coming hither, what's gone thither — PRs, deploys and agents in your menu bar." />
+    <title>Hither — your pull requests, in the menu bar</title>
+    <meta name="description" content="A macOS menu bar app for the pull requests and issues waiting on you, plus your checks, deploys and Claude Code and Codex sessions." />
+    <meta property="og:title" content="Hither — your pull requests, in the menu bar" />
+    <meta property="og:description" content="Pull requests like GHBar, plus checks, deploys and your Claude Code and Codex sessions." />
     <meta property="og:image" content="https://erenbekman.github.io/hither/assets/og.png" />
     <meta property="og:url" content="https://erenbekman.github.io/hither/" />
-    <meta name="twitter:card" content="summary" />
-    <link rel="icon" type="image/png" href="assets/favicon.png" />
-    <link rel="apple-touch-icon" href="assets/icon.png" />
-    <link rel="stylesheet" href="styles.css" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="icon" href="assets/favicon.png" />
+    <link rel="stylesheet" href="styles.css?v=7" />
   </head>
   <body>
-    <header class="topbar">
-      <a class="brand" href="#">
-        <svg class="mark" viewBox="0 4 18 10" aria-hidden="true"><circle class="dot" cx="4.5" cy="9" r="2.6" /><circle class="ring" cx="13.5" cy="9" r="2.6" /><path class="line" d="M7.4 9h3.2" /></svg>
-        Hither
-      </a>
-      <nav><a href="https://github.com/erenbekman/hither">GitHub</a></nav>
-    </header>
+    <div class="menubar">
+      <span class="menubar-left" aria-hidden="true"><b>Finder</b><span>File</span><span>Edit</span><span>View</span></span>
+      <span class="menubar-right">
+        <button class="tray" type="button" data-tray-button aria-label="Show or hide the Hither panel"><svg class="tray-mark" viewBox="0 0 18 18"><circle cx="4.5" cy="9" r="2.6" fill="currentColor" /><circle cx="13.5" cy="9" r="2.6" fill="none" stroke="currentColor" stroke-width="1.6" /><path d="M7.4 9h3.2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" /></svg><span class="tray-count num" data-tray>6</span></button>
+        <span class="clock num" aria-hidden="true">Wed 21:50</span>
+      </span>
+    </div>
 
     <main>
       <section class="hero">
-        <img class="app-icon" src="assets/icon.png" width="96" height="96" alt="" />
-        <h1>Hither</h1>
-        <p class="tagline">What's coming hither, what's gone thither — PRs, deploys and agents in your menu bar.</p>
-        <div class="ctas">
-          <a class="download" href="https://github.com/erenbekman/hither/releases/latest/download/Hither.dmg">
-            <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2v8M4.5 7 8 10.5 11.5 7M3 13.5h10" /></svg>
-            Download for Mac
-          </a>
-          <button class="brew" type="button" data-copy="brew install --cask erenbekman/tap/hither" aria-label="Copy the Homebrew command">
-            <code>brew install --cask erenbekman/tap/hither</code>
-            <span class="copied" aria-live="polite"></span>
-          </button>
-        </div>
-        <p class="meta">macOS 13+ · Apple silicon and Intel · Free and open source</p>
-      </section>
-
-      <section class="desktop" id="panel" aria-label="Try the Hither panel">
-        <div class="menubar" aria-hidden="true">
-          <span class="wifi"><svg viewBox="0 0 16 12"><path d="M1.5 4.2a9.5 9.5 0 0 1 13 0M3.8 6.6a6.2 6.2 0 0 1 8.4 0M6.1 9a2.9 2.9 0 0 1 3.8 0" /><circle cx="8" cy="10.8" r=".9" /></svg></span>
-          <span class="tray"><svg class="mark" viewBox="0 4 18 10"><circle class="dot" cx="4.5" cy="9" r="2.6" /><circle class="ring" cx="13.5" cy="9" r="2.6" /><path class="line" d="M7.4 9h3.2" /></svg><span class="num" data-tray>11</span></span>
-          <span class="battery"><svg viewBox="0 0 26 12"><rect x="0.7" y="0.7" width="21.6" height="10.6" rx="3" /><rect class="level" x="2.5" y="2.5" width="14" height="7" rx="1.5" /><path d="M24.2 4.3v3.4" /></svg></span>
-          <span class="control"><svg viewBox="0 0 16 14"><rect x="0.8" y="0.8" width="14.4" height="5" rx="2.5" /><circle cx="12.7" cy="3.3" r="1.4" /><rect x="0.8" y="8.2" width="14.4" height="5" rx="2.5" /><circle cx="3.3" cy="10.7" r="1.4" /></svg></span>
-          <span class="clock">Wed 9:41</span>
+        <div class="pitch">
+          <img class="app-icon" src="assets/icon.png" alt="" width="64" height="64" />
+          <h1>Your pull requests, in the menu bar. <span>And everything after.</span></h1>
+          <p class="lede">Reviews and pull requests like GHBar — plus your checks, deploys, and Claude Code and Codex sessions.</p>
+          <div class="actions">
+            <a class="button primary" href="https://github.com/erenbekman/hither/releases/latest/download/Hither.dmg">Download for Mac</a>
+            <button class="button code" type="button" data-copy="brew install --cask erenbekman/tap/hither">
+              <span class="code-text">brew install --cask erenbekman/tap/hither</span>
+              <span class="copied" aria-live="polite"></span>
+            </button>
+          </div>
+          <p class="meta">macOS 13+ · Apple silicon and Intel · Free and open source</p>
         </div>
 
-        <div class="panel">
-          <div class="segmented" role="tablist" aria-label="Lanes">
-            <button role="tab" aria-selected="true" data-tab="incoming">Incoming <span class="badge" data-badge="incoming">4</span></button>
-            <button role="tab" aria-selected="false" tabindex="-1" data-tab="outgoing">Outgoing <span class="badge critical" data-badge="outgoing">5</span></button>
-            <button role="tab" aria-selected="false" tabindex="-1" data-tab="agents">Agents <span class="badge" data-badge="agents">2</span></button>
-            <button role="tab" aria-selected="false" tabindex="-1" data-tab="suggestions"><span class="label-long">Suggestions</span><span class="label-short">Ideas</span> <span class="badge critical" data-badge="suggestions">4</span></button>
+        <p class="panel-closed" data-closed hidden>Hither is closed. Click its icon in the menu bar to open it again.</p>
+        <div class="panel" aria-label="Hither panel preview" data-panel>
+          <header class="panel-head">
+            <span class="avatar me" aria-hidden="true">E</span>
+            <span class="who">
+              <span class="name">Eren <span class="login">@erenbekman</span></span>
+              <span class="stats num">128 stars · 2,611 followers</span>
+            </span>
+            <button class="icon refresh" type="button" data-refresh aria-label="Refresh" title="Refresh">↻</button>
+            <button class="icon" type="button" data-more aria-haspopup="menu" aria-expanded="false" aria-label="More" title="More">⋯</button>
+          </header>
+          <div class="menu" role="menu" data-menu hidden>
+            <a role="menuitem" href="https://github.com/erenbekman/hither" target="_blank" rel="noopener">Open GitHub<kbd>⌘O</kbd></a>
+            <button role="menuitem" type="button" disabled>Settings…<kbd>⌘,</kbd></button>
+            <hr />
+            <button role="menuitem" type="button" data-mark-all>Mark All as Seen<kbd>⇧⌘A</kbd></button>
+            <hr />
+            <button role="menuitem" type="button" data-quit>Quit Hither<kbd>⌘Q</kbd></button>
           </div>
-          <div class="account">
-            <svg class="mark" viewBox="0 4 18 10" aria-hidden="true"><circle class="dot" cx="4.5" cy="9" r="2.6" /><circle class="ring" cx="13.5" cy="9" r="2.6" /><path class="line" d="M7.4 9h3.2" /></svg>
-            <span class="name">you</span><span class="muted">· now</span>
-            <span class="spacer"></span><span class="icon" aria-hidden="true">↻</span><span class="icon" aria-hidden="true"><svg class="gear" viewBox="0 0 18 18" aria-hidden="true"><path d="M9 6.2a2.8 2.8 0 1 0 0 5.6 2.8 2.8 0 0 0 0-5.6zM9 1.8v2M9 14.2v2M1.8 9h2M14.2 9h2M3.9 3.9l1.4 1.4M12.7 12.7l1.4 1.4M3.9 14.1l1.4-1.4M12.7 5.3l1.4-1.4" /></svg></span>
-          </div>
-          <div class="lane" role="tabpanel" data-lane>
-            <h3 class="section">Changes Requested <span class="count">1</span></h3>
-            <div class="row attention unseen"><span class="status"></span><span class="text"><span class="title">Move invoices to the queue</span><span class="sub">acme/api #402 · @eren</span></span><span class="age">5h</span></div>
-            <h3 class="section">Review Requested <span class="count">1</span></h3>
-            <div class="row attention unseen"><span class="status"></span><span class="text"><span class="title">Add rate limit to webhook deliveries</span><span class="sub">acme/api #418 · @carol</span></span><span class="age">2h</span></div>
-            <h3 class="section">Pull Requests <span class="count">2</span></h3>
-            <div class="row info unseen"><span class="status"></span><span class="text"><span class="title">Fix timezone in invoice export</span><span class="sub">acme/billing #411 · @dave</span></span><span class="age">1d</span></div>
-            <div class="row info"><span class="status"></span><span class="text"><span class="title">Translate onboarding emails</span><span class="sub">acme/web #395 · @erin</span></span><span class="age">5d</span></div>
-            <h3 class="section">Issues <span class="count">1</span></h3>
-            <div class="row info unseen"><span class="status"></span><span class="text"><span class="title">Export to CSV drops the last row</span><span class="sub">acme/billing #406 · @frank</span></span><span class="age">3h</span></div>
-          </div>
+          <nav class="tabs" role="tablist" data-tabs></nav>
+          <div class="list" data-list></div>
+          <footer class="panel-foot">
+            <button class="link" type="button" data-mark-seen>Mark these as seen</button>
+            <span class="num" data-updated>Updated 21:50</span>
+          </footer>
         </div>
       </section>
 
-      <section class="lanes" aria-labelledby="lanes-title">
-        <h2 id="lanes-title">Four lanes, one glance</h2>
-        <p class="lead">A short list per lane, the most urgent first. Click one to try it above.</p>
-        <div class="lane-grid">
-          <button class="lane-card" type="button" data-show="incoming">
-            <svg viewBox="0 0 18 18" aria-hidden="true"><path d="M2.5 10.5v3.5a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1v-3.5M2.5 10.5h3.5l1 1.8h4l1-1.8h3.5M9 2.5v6M6.5 6 9 8.5 11.5 6" /></svg>
-            <h3>Incoming</h3>
-            <p>Pull requests and issues in your repositories, reviews waiting on you, changes requested on yours. One GitHub request per refresh.</p>
-          </button>
-          <button class="lane-card" type="button" data-show="outgoing">
-            <svg viewBox="0 0 18 18" aria-hidden="true"><path d="M3 15h12M9 12V3M5.5 6.5 9 3l3.5 3.5" /></svg>
-            <h3>Outgoing</h3>
-            <p>Failing checks on your pull requests and main branches, Laravel Forge deploys, new and spiking Sentry errors.</p>
-          </button>
-          <button class="lane-card" type="button" data-show="agents">
-            <svg viewBox="0 0 18 18" aria-hidden="true"><rect x="2.5" y="3.5" width="13" height="10" rx="2" /><path d="M5.5 7.5l2 1.5-2 1.5M9.5 10.5h3" /></svg>
-            <h3>Agents</h3>
-            <p>Claude Code sessions that are working, finished or waiting for you, and pull requests opened by coding agents.</p>
-          </button>
-          <button class="lane-card" type="button" data-show="suggestions">
-            <svg viewBox="0 0 18 18" aria-hidden="true"><path d="M9 2.5a4.5 4.5 0 0 0-2.5 8.2v1.8h5v-1.8A4.5 4.5 0 0 0 9 2.5zM7 15h4" /></svg>
-            <h3>Suggestions</h3>
-            <p>Deterministic rules turn those signals into one-click actions, like errors that started right after a deploy.</p>
-          </button>
-        </div>
+      <section class="lanes" aria-label="What Hither shows">
+        <button class="lane-card" type="button" data-show="incoming">
+          <span class="lane-title">Pull requests</span>
+          <span>What waits on you: reviews, changes, mentions, your own pull requests. The calm list you know from GHBar.</span>
+        </button>
+        <button class="lane-card" type="button" data-show="outgoing">
+          <span class="lane-title">Checks &amp; deploys</span>
+          <span>A red main branch, failed checks, Forge deploys and new Sentry errors — what happens after you merge.</span>
+        </button>
+        <button class="lane-card" type="button" data-show="agents">
+          <span class="lane-title">Agents</span>
+          <span>Claude Code or Codex waiting for you. One click brings the right terminal tab forward.</span>
+        </button>
       </section>
 
-      <section class="claude" aria-labelledby="claude-title">
-        <div class="claude-text">
-          <h2 id="claude-title">Claude Code, in the loop</h2>
-          <ul>
-            <li><strong>Know when it waits.</strong> A session asking for permission shows up in Agents and sends a notification.</li>
-            <li><strong>Start in the right place.</strong> "Open in Claude" opens <code>claude</code> in your terminal (iTerm, Terminal, Ghostty or Warp), in the repository's folder.</li>
-            <li><strong>Prompts carry ids, not text.</strong> A repository, a pull request number, a Sentry issue. Never titles, logs or error text.</li>
-            <li><strong>Nothing runs on its own.</strong> Claude starts interactively, with your normal permissions, when you press the button.</li>
-          </ul>
-        </div>
-        <div class="claude-visual" aria-hidden="true">
-          <div class="notification">
-            <img src="assets/icon.png" width="36" height="36" alt="" />
-            <div class="notification-text">
-              <span class="notification-title">Claude is waiting · api</span>
-              <span>Claude needs your permission to use Bash</span>
-            </div>
-            <span class="notification-time">now</span>
+      <section class="install" id="install">
+        <h2>Install</h2>
+        <div class="install-rows">
+          <div class="install-row">
+            <span class="install-label">Download</span>
+            <a href="https://github.com/erenbekman/hither/releases/latest/download/Hither.dmg">Hither.dmg</a>
+            <span class="muted">signed and notarized, updates itself</span>
           </div>
-          <div class="suggestion">
-            <div class="suggestion-head"><span class="status critical"></span><span class="title">Errors started after the shop.acme.app deploy</span><span class="age">10m</span></div>
-            <p class="detail">1 new Sentry issue within 30 minutes of 4f8a6d2</p>
-            <div class="actions"><span class="button primary">Open in Claude</span><span class="button">Open in Sentry</span></div>
+          <div class="install-row">
+            <span class="install-label">Homebrew</span>
+            <button class="inline-code" type="button" data-copy="brew install --cask erenbekman/tap/hither">brew install --cask erenbekman/tap/hither <span class="copied" aria-live="polite"></span></button>
           </div>
         </div>
-      </section>
-
-      <section class="privacy" aria-labelledby="privacy-title">
-        <h2 id="privacy-title">Your data stays on your Mac</h2>
-        <div class="privacy-grid">
-          <div><h3>Your tokens, your requests</h3><p>Hither talks only to GitHub, Forge and Sentry with your own credentials. There is no Hither server.</p></div>
-          <div><h3>Keychain, not files</h3><p>Forge and Sentry tokens live in the macOS Keychain. GitHub comes from <code>gh auth token</code>.</p></div>
-          <div><h3>Claude only on request</h3><p>Nothing is sent to Claude unless you press a button that says so. Summaries use read-only tools.</p></div>
-          <div><h3>Local hooks</h3><p>The Claude Code hook listener accepts connections from 127.0.0.1 only and checks a random token.</p></div>
-        </div>
+        <p class="muted">Sign in with GitHub on first launch, or let Hither use your GitHub CLI account. Every lane can be turned off.</p>
       </section>
     </main>
 
-    <footer class="footer">
-      <a href="https://github.com/erenbekman/hither">GitHub</a>
-      <a href="https://github.com/erenbekman/hither/releases">Releases</a>
-      <span>Inspired by <a href="https://github.com/cobanov/ghbar">GHBar</a> by Mert Çobanov</span>
-      <span>© 2026 Eren Bekman · MIT</span>
+    <footer class="site-foot">
+      <p>Nothing leaves your Mac except the calls Hither makes to GitHub, Forge and Sentry.</p>
+      <p class="links">
+        <a href="https://github.com/erenbekman/hither">GitHub</a>
+        <a href="https://github.com/erenbekman/hither/releases">Releases</a>
+        <span>MIT</span>
+        <span>Inspired by <a href="https://github.com/cobanov/ghbar">GHBar</a> by Mert Çobanov</span>
+      </p>
     </footer>
 
-    <script src="app.js" defer></script>
+    <script src="app.js?v=6"></script>
   </body>
 </html>

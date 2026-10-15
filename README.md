@@ -39,4 +39,4 @@ MIT. See [LICENSE](LICENSE).
 
 ## Credits
 
-Architecture inspired by [GHBar](https://github.com/cobanov/ghbar) by Mert Çobanov (MIT). See [NOTICE](NOTICE).
+Panel design and architecture inspired by [GHBar](https://github.com/cobanov/ghbar) by Mert Çobanov (MIT). See [NOTICE](NOTICE).
