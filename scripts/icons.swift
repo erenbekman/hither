@@ -61,19 +61,20 @@ enum TrayState: String, CaseIterable {
 
 func trayIcon(size: Int, state: TrayState) -> CGImage {
     image(size: size) { ctx in
-        let rect = CGRect(x: 0, y: 0, width: size, height: size)
+        let px = CGFloat(size) / 36
+        let box = { (x: CGFloat, y: CGFloat, w: CGFloat, h: CGFloat) in CGRect(x: x * px, y: y * px, width: w * px, height: h * px) }
         if state == .error { ctx.setAlpha(0.4) }
-        drawMark(ctx, in: rect, dot: .black, ring: .black)
-        guard state == .alert else { return }
-        let unit = CGFloat(size) / 18
-        let center = CGPoint(x: 15 * unit, y: CGFloat(size) - 3.6 * unit)
-        let badge = 2.4 * unit
-        let gap = badge + 1.1 * unit
-        ctx.setBlendMode(.clear)
-        ctx.fillEllipse(in: CGRect(x: center.x - gap, y: center.y - gap, width: gap * 2, height: gap * 2))
-        ctx.setBlendMode(.normal)
         ctx.setFillColor(RGBA.black.cg)
-        ctx.fillEllipse(in: CGRect(x: center.x - badge, y: center.y - badge, width: badge * 2, height: badge * 2))
+        ctx.fillEllipse(in: box(4, 13, 10, 10))
+        ctx.fill(box(14, 16, 7, 4))
+        ctx.addEllipse(in: box(21, 12, 12, 12))
+        ctx.addEllipse(in: box(24, 15, 6, 6))
+        ctx.fillPath(using: .evenOdd)
+        guard state == .alert else { return }
+        ctx.setBlendMode(.clear)
+        ctx.fillEllipse(in: box(26, 25, 10, 10))
+        ctx.setBlendMode(.normal)
+        ctx.fillEllipse(in: box(27, 26, 8, 8))
     }
 }
 
