@@ -9,7 +9,7 @@ export interface ForgeLogIds {
 
 export type SuggestionAction =
   | { kind: 'claude'; template: string; repo: string; vars: Record<string, string>; log?: ForgeLogIds }
-  | { kind: 'summarize'; template: string; repo: string; vars: Record<string, string> }
+  | { kind: 'summarize'; template: string; repo: string; number: string; vars: Record<string, string> }
   | { kind: 'open'; url: string; label: string }
   | { kind: 'focus-terminal'; terminal?: string; session?: string; folder?: string }
 
@@ -181,7 +181,7 @@ function fromSignals(input: RuleInput): Suggestion[] {
           detail: `${s.project} · ${s.title}`,
           at: s.at,
           actions: [
-            { kind: 'summarize', template: 'agent-pr-summary', repo: s.project, vars: { repo: s.project, number: num(s) } },
+            { kind: 'summarize', template: 'pr-summary', repo: s.project, number: num(s), vars: { repo: s.project, number: num(s) } },
             ...open(s.url, 'Open on GitHub'),
           ],
         },

@@ -56,3 +56,4 @@ Her kaynak `src/sources/<kaynak>/` altında, verisini tek tipe (`Signal`, `src/c
 - `npm test` — Vitest
 - `cd src-tauri && cargo test` — Rust birim testleri
 - `npm run tauri dev` / `npm run tauri build`
+- `scripts/security-check.sh` — yayın öncesi güvenlik kontrolleri: hook dinleyicisi (çalışan uygulamaya karşı), CSP, `claude -p` araçları

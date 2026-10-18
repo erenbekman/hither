@@ -13,7 +13,9 @@ import { suggest, type Suggestion, type SuggestionAction } from '../core/suggest
 import { DEFAULT_TEMPLATES, renderTemplate } from '../core/templates'
 import { claudePrint, focusTerminal, gitRepo, launchClaude, openUrl, secretGet, syncTemplates } from '../native'
 import { FORGE_TOKEN_KEY, fetchDeploymentLog } from '../sources/forge'
+import { pullRequestText } from '../sources/github/pull-request'
 import { notify } from './board-runtime'
+import { githubToken } from './github-auth'
 
 const WEEK_MS = 7 * 86_400_000
 
@@ -149,7 +151,8 @@ export function startSuggestions(deps: { board: BoardState; settings: () => Sett
         }
         case 'summarize': {
           const prompt = renderTemplate((await templates())[action.template], action.vars)
-          const text = await claudePrint(stored.folders[action.repo], prompt)
+          const pullRequest = await pullRequestText(await githubToken(), action.repo, action.number)
+          const text = await claudePrint(stored.folders[action.repo], `${prompt}\n${pullRequest}`)
           stored.summaries[card.id] = { text, at: new Date().toISOString() }
           state.summaries = { ...stored.summaries }
           break

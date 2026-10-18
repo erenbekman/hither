@@ -13,7 +13,7 @@ use crate::process::{is_executable, locate, run, RunError};
 
 const TERMINALS: [&str; 4] = ["iTerm", "Terminal", "Ghostty", "Warp"];
 const PRINT_TIMEOUT: Duration = Duration::from_secs(120);
-const READ_ONLY_TOOLS: [&str; 6] = ["Read", "Grep", "Glob", "Bash(gh pr view:*)", "Bash(gh pr diff:*)", "Bash(gh run view:*)"];
+const PRINT_TOOLS: &str = "Read,Grep,Glob";
 
 fn terminal_app(name: &str) -> Result<&'static str, String> {
     TERMINALS.into_iter().find(|t| *t == name).ok_or_else(|| format!("{name} is not a supported terminal"))
@@ -147,8 +147,7 @@ pub async fn claude_print(folder: Option<String>, prompt: String) -> Result<Stri
         let home = home()?;
         let mut command = Command::new(claude_path()?);
         command
-            .args(["-p", "--output-format", "text", "--allowedTools"])
-            .args(READ_ONLY_TOOLS)
+            .args(["-p", "--output-format", "text", "--tools", PRINT_TOOLS, "--strict-mcp-config"])
             .current_dir(folder.filter(|f| Path::new(f).is_dir()).unwrap_or_else(|| std::env::temp_dir().display().to_string()))
             .env("PATH", child_path(&home));
         match run(command, Some(prompt), PRINT_TIMEOUT) {

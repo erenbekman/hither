@@ -14,7 +14,7 @@ describe('renderTemplate', () => {
   })
 
   it('starts every action template with the no-push line', () => {
-    const actions = Object.entries(DEFAULT_TEMPLATES).filter(([name]) => name !== 'agent-pr-summary')
+    const actions = Object.entries(DEFAULT_TEMPLATES).filter(([name]) => name !== 'pr-summary')
     for (const [, text] of actions) expect(text.startsWith('Push etme, önce planı göster.')).toBe(true)
   })
 })
