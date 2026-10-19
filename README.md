@@ -2,17 +2,19 @@
 
 What's coming hither, what's gone thither — PRs, deploys and agents in your menu bar.
 
+![Hither's menu bar panel going through the Incoming, Outgoing, Agents and Suggestions lanes](docs/demo.gif)
+
+```bash
+brew install --cask erenbekman/tap/hither
+```
+
 A macOS menu bar app with four lanes: **Incoming** (PRs and issues waiting on you), **Outgoing** (CI, deploys, production errors), **Agents** (Claude Code and Codex sessions, and agent PRs) and **Suggestions**.
 
 All four lanes work: Incoming, Outgoing (CI, Forge deploys, Sentry errors), Agents (Claude Code and Codex sessions, agent pull requests) and Suggestions (one click opens Claude Code in your terminal (iTerm, Terminal, Ghostty or Warp) with an id-only prompt). See [docs/PLAN.md](docs/PLAN.md).
 
 ## Install
 
-```bash
-brew install --cask erenbekman/tap/hither
-```
-
-Or download the notarized `.dmg` from [Releases](https://github.com/erenbekman/hither/releases). It runs on Apple silicon and Intel Macs and updates itself from there. Sign in with GitHub on first launch, or let Hither use the [GitHub CLI](https://cli.github.com) account.
+Install with the Homebrew command above, or download the notarized `.dmg` from [Releases](https://github.com/erenbekman/hither/releases). It runs on Apple silicon and Intel Macs and updates itself from there. Sign in with GitHub on first launch, or let Hither use the [GitHub CLI](https://cli.github.com) account.
 
 ## Development
 
