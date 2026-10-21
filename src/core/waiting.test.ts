@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Signal } from './types'
-import { reminderDue, reminderKey, waitingQueue } from './waiting'
+import { nextTurn, reminderDue, reminderKey, reminderNotification, waitingFor, waitingQueue } from './waiting'
 
 const now = new Date('2026-10-21T12:00:00Z')
 const minutesAgo = (minutes: number) => new Date(now.getTime() - minutes * 60_000).toISOString()
@@ -49,5 +49,42 @@ describe('reminderDue', () => {
 
   it('stays quiet when reminders are off', () => {
     expect(reminderDue(queue, new Set(), 0)).toEqual([])
+  })
+})
+
+describe('waitingFor', () => {
+  it('drops the agent name the message starts with', () => {
+    const [agent] = waitingQueue([session('api', 'waiting', 3)], now)
+    expect(waitingFor({ ...agent, message: 'Claude needs your permission to use Bash' })).toBe('needs your permission to use Bash')
+    expect(waitingFor({ ...agent, agent: 'codex', message: 'Codex needs your permission to use Bash' })).toBe('needs your permission to use Bash')
+    expect(waitingFor({ ...agent, message: 'Waiting for you' })).toBe('Waiting for you')
+  })
+})
+
+describe('reminderNotification', () => {
+  it('says who has waited how long, where, and for what', () => {
+    const [agent] = waitingQueue([session('billing', 'waiting', 3, 'codex')], now)
+    expect(reminderNotification({ ...agent, message: 'Codex needs your permission to use Bash' })).toEqual({
+      title: 'Codex has been waiting 3 min · billing',
+      body: 'needs your permission to use Bash',
+      id: 'session:billing',
+    })
+  })
+})
+
+describe('nextTurn', () => {
+  const two = waitingQueue([session('api', 'waiting', 3), session('web', 'waiting', 1)], now)
+
+  it('goes to the longest waiting agent first, then through the rest in turn', () => {
+    const first = nextTurn(two)
+    const second = nextTurn(two, first)
+    expect([first, second, nextTurn(two, second)].map((turn) => two[turn!.index].id)).toEqual(['session:api', 'session:web', 'session:api'])
+  })
+
+  it('starts over when the queue changes and has nothing to go to when it is empty', () => {
+    const turn = nextTurn(two, nextTurn(two))
+    const three = waitingQueue([session('api', 'waiting', 3), session('web', 'waiting', 1), session('cli', 'waiting', 5)], now)
+    expect(nextTurn(three, turn)!.index).toBe(0)
+    expect(nextTurn([], turn)).toBeUndefined()
   })
 })

@@ -11,7 +11,7 @@ macOS menü çubuğu uygulaması. Tauri v2 + Vue 3 + TypeScript + Vite. Ürün v
 1. **Rust ince kabuk.** Yalnızca işletim sistemine dokunan işler: tray, popover pencere, keychain, `gh auth token`, bildirim, hook dinleyicisi, `~/.claude/settings.json` okuma/yazma. Hedef 300 satırdı; test hariç ~730 satır (süreç başlatma, hook dinleyicisi, dosya yazımı izinli eklentilerle TS'e taşınamıyor). Yeni Rust kodu eklemeden önce TS'e taşınabilir mi diye bak.
 2. **Mantık saf TypeScript'te** ve Vitest ile test edilir. Tauri API'sine dokunan kod `src/native.ts` ve `src/ui` ile sınırlı kalır; `src/core` ve `src/sources` Tauri'den bağımsızdır.
 3. **Bağımlılıklar minimum.** UI kütüphanesi ve Pinia yok; durum için `reactive()`.
-   - Rust'ta izinli: `tauri-plugin-positioner`, `tauri-plugin-notification`, `tauri-plugin-store`, `tauri-plugin-http`, `tauri-plugin-updater`, `keyring`, `tiny_http` (`serde_json` zaten Tauri'nin bağımlılığı).
+   - Rust'ta izinli: `tauri-plugin-positioner`, `tauri-plugin-global-shortcut` (JS: `@tauri-apps/plugin-global-shortcut`), `tauri-plugin-notification`, `tauri-plugin-store`, `tauri-plugin-http`, `tauri-plugin-updater`, `keyring`, `tiny_http` (`serde_json` zaten Tauri'nin bağımlılığı).
    - Bunların dışında bir paket (JS ya da Rust) eklemeden önce sor.
 4. **Panel penceresi kapatılmaz, yalnızca gizlenir.** Webview'daki zamanlayıcı arka planda çalışmaya devam eder.
 5. **Hiçbir hata boş liste olarak gösterilmez.** Her hata panelde görünür bir satırdır (`src/core/errors.ts` → `Banner`). "Bakamadım" ≠ "bekleyen yok".
@@ -29,13 +29,13 @@ Her kaynak `src/sources/<kaynak>/` altında, verisini tek tipe (`Signal`, `src/c
 
 ## Yapı
 
-- `src-tauri/src/lib.rs` — tray (Mark All as Seen, Settings, Quit), popover, ayarlar penceresi, `set_tray` (sayı + normal/alert/error ikon), `open_url`, `copy_text`, `reveal_panel`
+- `src-tauri/src/lib.rs` — tray (Mark All as Seen, Settings, Quit), popover (konum `placement.rs`: ikonun altında, mantıksal noktalarla), ayarlar penceresi, `set_tray` (sayı + normal/alert/error ikon), `open_url`, `copy_text`, `reveal_panel`
 - `src-tauri/src/gh.rs` — `gh_token` (tam yollar → PATH, 5 sn watchdog)
 - `src-tauri/src/secret.rs` — `secret_get/set/delete` (Keychain)
 - `src-tauri/src/hooks.rs` — Claude Code ve Codex hook dinleyicisi (`127.0.0.1:47811`; ajan ve iTerm oturumu header'dan), `agent_config_read/write` (`~/.claude/settings.json`, `~/.codex/hooks.json`; yedekli, atomik, izinleri genişletmez)
 - `src-tauri/src/launch.rs` — seçili terminalde (iTerm, Terminal, Ghostty, Warp) `claude` başlatma, `gh pr checkout`, sekmeye odak (iTerm oturum kimliği, Ghostty klasör; AppleScript, `Entitlements.plist` + `Info.plist`), yalnız okuma araçlı `claude -p`, `git_repo`, şablon dosyaları
 - `src-tauri/src/process.rs` — zaman aşımlı süreç çalıştırıcı ve ikili bulucu (gh, claude)
-- `src/core` — tipler, hatalar, ayarlar, `RefreshGate`, filtreleme, `SeenStore`, bildirim planı, `board` (çok kaynaklı yenileme döngüsü), `recovery` (CI düzeldi), `http`, `openable`
+- `src/core` — tipler, hatalar, ayarlar, `RefreshGate`, filtreleme, `SeenStore`, bildirim planı, `board` (çok kaynaklı yenileme döngüsü), `recovery` (CI düzeldi), `http`, `openable`, `waiting` (bekleyen ajan kuyruğu, hatırlatma, kısayolla sırayla gezme), `shortcut` (global kısayol metni)
 - `src/sources/github` — sorgu kurucu, GraphQL istemcisi (CI + izlenen branch'ler, profil ve kota dahil), cevap ayrıştırıcı, `githubSource`; `account.ts` kota görünürlüğü ve repo sayaçları (`repos.json`); `activity.ts` GitHub Notifications'tan "New Activity" (yalnız okuma, `If-Modified-Since`)
 - `src/sources/forge`, `src/sources/sentry` — Outgoing adapter'ları; token'lar Keychain'de (`forge-token`, `sentry-token`)
 - `src/sources/claude-code` — Claude Code ve Codex oturumlarından Agents sinyalleri; durum makinesi `core/sessions.ts`, hook birleştirme (Claude `http`, Codex `curl` komutu) `core/claude-settings.ts`

@@ -2,7 +2,7 @@
 import { computed } from 'vue'
 import { ago, spokenAge } from '../../core/format'
 import { agentName } from '../../core/sessions'
-import type { WaitingAgent } from '../../core/waiting'
+import { waitingFor, type WaitingAgent } from '../../core/waiting'
 
 const SHOWN = 3
 
@@ -10,11 +10,6 @@ const props = defineProps<{ queue: WaitingAgent[]; now: Date }>()
 defineEmits<{ open: [id: string]; more: [] }>()
 
 const shown = computed(() => props.queue.slice(0, SHOWN))
-
-function detail(agent: WaitingAgent) {
-  const name = `${agentName(agent.agent)} `
-  return agent.message.startsWith(name) ? agent.message.slice(name.length) : agent.message
-}
 </script>
 
 <template>
@@ -25,13 +20,13 @@ function detail(agent: WaitingAgent) {
       :key="agent.id"
       class="row"
       data-row
-      :aria-label="`${agentName(agent.agent)} in ${agent.project} ${detail(agent)}, started waiting ${spokenAge(agent.since, now)}`"
+      :aria-label="`${agentName(agent.agent)} in ${agent.project} ${waitingFor(agent)}, started waiting ${spokenAge(agent.since, now)}`"
       @click="$emit('open', agent.id)"
     >
       <span class="dot" aria-hidden="true" />
       <span class="text">
         <span class="who">{{ agentName(agent.agent) }} · {{ agent.project }}</span>
-        <span class="message">{{ detail(agent) }}</span>
+        <span class="message">{{ waitingFor(agent) }}</span>
       </span>
       <span class="age num">{{ ago(agent.since, now) }}</span>
     </button>

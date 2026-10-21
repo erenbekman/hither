@@ -3,16 +3,19 @@ import { listen } from '@tauri-apps/api/event'
 import { Menu } from '@tauri-apps/api/menu'
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { fetch as httpFetch } from '@tauri-apps/plugin-http'
+import { isRegistered, register, unregister } from '@tauri-apps/plugin-global-shortcut'
 import { isPermissionGranted, onAction, requestPermission, sendNotification } from '@tauri-apps/plugin-notification'
 import { load, type Store } from '@tauri-apps/plugin-store'
 import { createBoard, initialBoardState, parseSnapshot, type TrayState } from '../core/board'
 import { errorText, toAppError, type AppError } from '../core/errors'
-import type { NotificationSpec } from '../core/notifications'
+import { canNotify, type NotificationSpec } from '../core/notifications'
 import { isOpenable } from '../core/openable'
 import { SeenStore } from '../core/seen-store'
 import { applyHookEvent, pruneSessions, restoreSessions, type HookEvent, type Sessions } from '../core/sessions'
 import { DEFAULT_SETTINGS, isRepoWatched, muteRepo, type LaneId, type Settings } from '../core/settings'
+import { shortcutLabel } from '../core/shortcut'
 import type { Signal, Source } from '../core/types'
+import { nextTurn, reminderDue, reminderKey, reminderNotification, waitingQueue, type Turn } from '../core/waiting'
 import { describe, isAmbient, isLoud, LANE_ORDER, sourceLanes } from '../lanes'
 import { checkoutPullRequest, copyText, focusTerminal, openSettings, openUrl, openWelcome, revealPanel, secretGet, setTray, startHookListener } from '../native'
 import { AGENT_SOURCE_ID, claudeCodeSource } from '../sources/claude-code'
@@ -53,8 +56,16 @@ export function startBoard() {
   let hookNotices: string[] = []
   const hooks = reactive<{ status?: HookStatus; busy: boolean }>({ busy: false })
   let storageNotice: string | undefined
-  const agents = claudeCodeSource({ sessions: () => sessions, problem: () => listenerProblem, notices: () => (storageNotice ? [...hookNotices, storageNotice] : hookNotices) })
+  let shortcutNotice: string | undefined
+  const agents = claudeCodeSource({
+    sessions: () => sessions,
+    problem: () => listenerProblem,
+    notices: () => [...hookNotices, ...[storageNotice, shortcutNotice].filter((notice): notice is string => notice !== undefined)],
+  })
   const activity = activitySource({ token: githubToken })
+  const reminded = new Set<string>()
+  let shortcut = ''
+  let turn: Turn | undefined
   const sources = (): Source[] => {
     const settings = current.value
     const on = (lane: LaneId) => settings.lanes.includes(lane)
@@ -109,6 +120,41 @@ export function startBoard() {
 
   function report(source: string, error: unknown) {
     state.problems = [...state.problems, { source, lanes: ['incoming', 'outgoing', 'agents'], error: toAppError(error) }]
+  }
+
+  function remindWaiting() {
+    const at = new Date()
+    const queue = waitingQueue(state.lanes.agents.flatMap((section) => section.signals), at)
+    const due = reminderDue(queue, reminded, current.value.waitingReminderMinutes)
+    for (const agent of due) reminded.add(reminderKey(agent))
+    if (due.length > 0 && canNotify(current.value, 'agents', at)) void notify(due.map(reminderNotification)).catch((error) => report('notifications', error))
+  }
+
+  async function nextWaitingAgent() {
+    const queue = waitingQueue(state.lanes.agents.flatMap((section) => section.signals), new Date())
+    turn = nextTurn(queue, turn)
+    if (turn) await open(queue[turn.index].id, undefined)
+    else await revealPanel().catch((error) => report('shortcut', error))
+  }
+
+  async function applyShortcut() {
+    const wanted = current.value.nextAgentShortcut
+    if (wanted === shortcut && !shortcutNotice) return
+    try {
+      if (shortcut) await unregister(shortcut)
+      shortcut = ''
+      if (wanted) {
+        if (await isRegistered(wanted)) await unregister(wanted)
+        await register(wanted, (event) => {
+          if (event.state === 'Pressed') void nextWaitingAgent()
+        })
+        shortcut = wanted
+      }
+      shortcutNotice = undefined
+    } catch (error) {
+      shortcutNotice = `Could not use ${shortcutLabel(wanted)} for the next waiting agent: ${errorText(toAppError(error))}`
+    }
+    void board?.refresh([AGENT_SOURCE_ID])
   }
 
   async function open(id: string, url: string | undefined) {
@@ -257,6 +303,7 @@ export function startBoard() {
       listenerProblem = { kind: 'unknown', message: `Hook listener could not start: ${error instanceof Error ? error.message : String(error)}` }
     }
     await checkHooks()
+    await applyShortcut()
 
     board = createBoard(state, {
       sources,
@@ -310,6 +357,7 @@ export function startBoard() {
     await onSettingsChanged(async () => {
       current.value = await readSettings(store)
       await checkHooks()
+      await applyShortcut()
       void board?.refresh()
     })
     await listen<HookEvent>('agent-event', async ({ payload }) => {
@@ -338,6 +386,7 @@ export function startBoard() {
       const woke = Date.now() - lastBeat > 2 * HEARTBEAT_MS
       lastBeat = Date.now()
       sessions = pruneSessions(sessions, new Date())
+      remindWaiting()
       void (woke ? board?.refresh() : board?.refreshIfOlderThan(current.value.refreshMinutes * 60_000))
     }, HEARTBEAT_MS)
 

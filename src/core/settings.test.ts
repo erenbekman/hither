@@ -14,6 +14,24 @@ describe('normalizeSettings', () => {
     expect(settings.organizations).toEqual([])
   })
 
+  it('counts agents in the menu bar on a fresh install and keeps the old count for people already using Hither', () => {
+    expect(normalizeSettings({}).trayCount).toBe('agents')
+    expect(normalizeSettings({ onboarded: true }).trayCount).toBe('all')
+    expect(normalizeSettings({ onboarded: true, trayCount: 'agents' }).trayCount).toBe('agents')
+    expect(normalizeSettings({ trayCount: 'everything' }).trayCount).toBe('agents')
+  })
+
+  it('reminds about a waiting agent after two minutes unless turned off', () => {
+    expect(normalizeSettings({}).waitingReminderMinutes).toBe(2)
+    expect(normalizeSettings({ waitingReminderMinutes: 0 }).waitingReminderMinutes).toBe(0)
+    expect(normalizeSettings({ waitingReminderMinutes: -1 }).waitingReminderMinutes).toBe(2)
+  })
+
+  it('brings the next waiting agent forward with ⌥⌘J unless the shortcut is turned off', () => {
+    expect(normalizeSettings({}).nextAgentShortcut).toBe('Alt+Command+KeyJ')
+    expect(normalizeSettings({ nextAgentShortcut: '' }).nextAgentShortcut).toBe('')
+  })
+
   it('never refreshes more often than once a minute', () => {
     expect(normalizeSettings({ refreshMinutes: 0 }).refreshMinutes).toBe(1)
   })

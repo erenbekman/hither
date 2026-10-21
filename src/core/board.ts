@@ -5,6 +5,7 @@ import { deriveRecoveries, type RecoveryRule } from './recovery'
 import { RefreshGate } from './refresh-gate'
 import type { SeenState, SeenStore } from './seen-store'
 import type { Settings } from './settings'
+import { waitingQueue } from './waiting'
 import type { Lane, Profile, Quota, Signal, Source } from './types'
 
 export type TrayState = 'normal' | 'alert' | 'error'
@@ -144,7 +145,10 @@ export function createBoard(state: BoardState, deps: BoardDeps) {
     const critical = LANES.some((lane) =>
       state.lanes[lane].some((section) => section.signals.some((s) => s.severity === 'critical' && state.unseen[s.id] && deps.isLoud(s))),
     )
-    deps.setTray(state.badge, critical ? 'alert' : state.problems.length > 0 ? 'error' : 'normal')
+    const waiting = waitingQueue(state.lanes.agents.flatMap((section) => section.signals), now()).length
+    const agents = deps.settings().trayCount === 'agents'
+    const alert = critical || (agents && waiting > 0)
+    deps.setTray(agents ? waiting : state.badge, alert ? 'alert' : state.problems.length > 0 ? 'error' : 'normal')
   }
 
   function publishStatus() {

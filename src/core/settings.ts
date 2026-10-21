@@ -9,6 +9,8 @@ export const LANE_IDS = ['incoming', 'outgoing', 'agents', 'suggestions'] as con
 export type LaneId = (typeof LANE_IDS)[number]
 export const QUOTA_VISIBILITY = ['never', 'low', 'always'] as const
 export type QuotaVisibility = (typeof QUOTA_VISIBILITY)[number]
+export const TRAY_COUNTS = ['all', 'agents'] as const
+export type TrayCount = (typeof TRAY_COUNTS)[number]
 
 export interface Settings {
   refreshMinutes: number
@@ -40,6 +42,9 @@ export interface Settings {
   reviewOverdueHours: number
   onboarded: boolean
   lanes: LaneId[]
+  trayCount: TrayCount
+  waitingReminderMinutes: number
+  nextAgentShortcut: string
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -72,6 +77,9 @@ export const DEFAULT_SETTINGS: Settings = {
   reviewOverdueHours: 24,
   onboarded: false,
   lanes: [...LANE_IDS],
+  trayCount: 'agents',
+  waitingReminderMinutes: 2,
+  nextAgentShortcut: 'Alt+Command+KeyJ',
 }
 
 const isStringRecord = (value: unknown): value is Record<string, string> =>
@@ -127,6 +135,9 @@ export function normalizeSettings(raw: Record<string, unknown>): Settings {
     reviewOverdueHours: pick('reviewOverdueHours', isCount),
     onboarded: pick('onboarded', isBool),
     lanes: chosenLanes(raw.lanes),
+    waitingReminderMinutes: pick('waitingReminderMinutes', isCount),
+    nextAgentShortcut: pick('nextAgentShortcut', isText),
+    trayCount: TRAY_COUNTS.includes(raw.trayCount as TrayCount) ? (raw.trayCount as TrayCount) : raw.onboarded === true ? 'all' : 'agents',
   }
 }
 

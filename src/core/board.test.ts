@@ -7,8 +7,10 @@ import type { Lane, PollResult, Signal, Source } from './types'
 const ORDER: Record<Lane, readonly string[]> = {
   incoming: ['changes-requested', 'review-requested', 'pr', 'issue', 'my-pr'],
   outgoing: ['deploy-failed', 'ci-failed', 'ci-fixed', 'deploy-ok'],
-  agents: [],
+  agents: ['agent-waiting', 'agent-running'],
 }
+
+const COUNT_ALL = { ...DEFAULT_SETTINGS, trayCount: 'all' as const }
 
 const signal = (n: number, kind = 'pr', source: Signal['source'] = 'github'): Signal => {
   const outgoing = ORDER.outgoing.includes(kind) || kind === 'ci-passed'
@@ -49,7 +51,7 @@ function setup(sources: Source[], overrides: Partial<BoardDeps> = {}) {
     saveSeen: vi.fn(async () => {}),
     notify: vi.fn(),
     setTray: vi.fn(),
-    settings: () => DEFAULT_SETTINGS,
+    settings: () => COUNT_ALL,
     order: ORDER,
     isLoud: (s: Signal) => (s.lane === 'incoming' ? s.kind !== 'my-pr' : s.severity !== 'info'),
     describe: (s: Signal) => `New ${s.kind}`,
@@ -87,6 +89,26 @@ describe('createBoard', () => {
     expect(deps.notify).not.toHaveBeenCalled()
     expect(state.badge).toBe(0)
     expect(state.unseen[signal(5, 'my-pr').id]).toBe(true)
+  })
+
+  it('counts the agents waiting on you when the menu bar counts agents', async () => {
+    const agent = (n: number, state: string): Signal => ({
+      id: `session:${n}`,
+      source: 'claude-code',
+      lane: 'agents',
+      kind: `agent-${state}`,
+      severity: state === 'waiting' ? 'attention' : 'info',
+      project: 'api',
+      title: 'Claude needs your permission to use Bash',
+      at: '2026-10-14T12:20:00Z',
+    })
+    const sources = () => [fakeSource('github', [ok([signal(1), signal(2)])]), fakeSource('claude-code', [ok([agent(1, 'waiting'), agent(2, 'running')])])]
+    const agents = setup(sources(), { settings: () => ({ ...DEFAULT_SETTINGS, trayCount: 'agents' }) })
+    await agents.board.refresh()
+    expect(agents.deps.setTray).toHaveBeenLastCalledWith(1, 'alert')
+    const calm = setup([fakeSource('github', [ok([signal(1), signal(2)])])], { settings: () => ({ ...DEFAULT_SETTINGS, trayCount: 'agents' }) })
+    await calm.board.refresh()
+    expect(calm.deps.setTray).toHaveBeenLastCalledWith(0, 'normal')
   })
 
   it('counts loud outgoing signals in the badge of their lane', async () => {

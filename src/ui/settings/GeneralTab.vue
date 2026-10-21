@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import type { LaneId } from '../../core/settings'
+import { onUnmounted, ref } from 'vue'
+import type { LaneId, TrayCount } from '../../core/settings'
+import { acceleratorFrom, shortcutLabel } from '../../core/shortcut'
 import type { Lane } from '../../core/types'
 import { LANE_ORDER, SECTION_TITLES } from '../../lanes'
 import Banner from '../components/Banner.vue'
@@ -11,6 +13,7 @@ import { toggleIn, useSettings } from './context'
 
 const { state, save, updates, changeLaunchAtLogin } = useSettings()
 const INTERVALS = [1, 2, 5, 10, 15, 30]
+const REMINDERS = [1, 2, 5, 10]
 const LANES: { id: LaneId; label: string; hint: string }[] = [
   { id: 'incoming', label: 'Incoming', hint: 'Pull requests and issues waiting on you' },
   { id: 'outgoing', label: 'Outgoing', hint: 'Your checks, deploys and production errors' },
@@ -25,6 +28,36 @@ const NOTIFYING: { lane: Lane; label: string }[] = [
 const clock = (event: Event) => (event.target as HTMLInputElement).value
 const checked = (event: Event) => (event.target as HTMLInputElement).checked
 const isLastLane = (id: LaneId) => state.settings.lanes.length === 1 && state.settings.lanes[0] === id
+const recording = ref(false)
+
+function record(event: KeyboardEvent) {
+  event.preventDefault()
+  event.stopPropagation()
+  if (event.key === 'Escape') return stopRecording()
+  const accelerator = acceleratorFrom(event)
+  if (!accelerator) return
+  stopRecording()
+  save({ nextAgentShortcut: accelerator })
+}
+
+function toggleRecording() {
+  if (recording.value) stopRecording()
+  else startRecording()
+}
+
+function startRecording() {
+  recording.value = true
+  window.addEventListener('keydown', record, true)
+  window.addEventListener('blur', stopRecording)
+}
+
+function stopRecording() {
+  recording.value = false
+  window.removeEventListener('keydown', record, true)
+  window.removeEventListener('blur', stopRecording)
+}
+
+onUnmounted(stopRecording)
 </script>
 
 <template>
@@ -48,7 +81,28 @@ const isLastLane = (id: LaneId) => state.settings.lanes.length === 1 && state.se
         </option>
       </select>
     </SettingRow>
-    <SettingRow label="Notifications" hint="The menu bar count shows new items either way">
+    <SettingRow label="Menu bar count">
+      <select :value="state.settings.trayCount" @change="save({ trayCount: ($event.target as HTMLSelectElement).value as TrayCount })">
+        <option value="agents">Agents waiting on you</option>
+        <option value="all">All unseen items</option>
+      </select>
+    </SettingRow>
+    <SettingRow label="Remind about a waiting agent" hint="Once, when an agent has waited this long">
+      <select :value="state.settings.waitingReminderMinutes" @change="save({ waitingReminderMinutes: Number(($event.target as HTMLSelectElement).value) })">
+        <option :value="0">Never</option>
+        <option v-for="minutes in REMINDERS" :key="minutes" :value="minutes">After {{ minutes }} min</option>
+        <option v-if="state.settings.waitingReminderMinutes > 0 && !REMINDERS.includes(state.settings.waitingReminderMinutes)" :value="state.settings.waitingReminderMinutes">
+          After {{ state.settings.waitingReminderMinutes }} min
+        </option>
+      </select>
+    </SettingRow>
+    <SettingRow label="Go to the next waiting agent" hint="Works in any app; press again for the next agent">
+      <button class="button" :class="{ primary: recording }" @click="toggleRecording">
+        {{ recording ? 'Type a shortcut…' : state.settings.nextAgentShortcut ? shortcutLabel(state.settings.nextAgentShortcut) : 'Off' }}
+      </button>
+      <button v-if="state.settings.nextAgentShortcut && !recording" class="button" @click="save({ nextAgentShortcut: '' })">Turn off</button>
+    </SettingRow>
+    <SettingRow label="Notifications" hint="The menu bar count stays up to date either way">
       <Toggle label="Notifications" :model-value="state.settings.notifications" @update:model-value="save({ notifications: $event })" />
     </SettingRow>
     <SettingRow label="Open at login">
