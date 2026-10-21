@@ -2,6 +2,7 @@
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref } from 'vue'
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { scopeLabel, type LaneId } from '../core/settings'
+import { waitingQueue } from '../core/waiting'
 import type { Lane, Signal } from '../core/types'
 import { openSettings, openUrl } from '../native'
 import { isQuotaLow, showsQuota } from '../sources/github/account'
@@ -11,6 +12,7 @@ import Avatar from './components/Avatar.vue'
 import Banner from './components/Banner.vue'
 import LaneTabs, { type LaneTab } from './components/LaneTabs.vue'
 import Mark from './components/Mark.vue'
+import NeedsYou from './components/NeedsYou.vue'
 import LaneView from './LaneView.vue'
 import { startSuggestions } from './suggestions-runtime'
 import SuggestionsView from './SuggestionsView.vue'
@@ -34,6 +36,7 @@ const now = ref(new Date())
 let ticker: ReturnType<typeof setInterval> | undefined
 
 const signalsIn = (lane: Lane) => board.state.lanes[lane].flatMap((section) => section.signals)
+const waiting = computed(() => waitingQueue(signalsIn('agents'), now.value))
 
 const tabs = computed<LaneTab[]>(() =>
   board.settings().lanes.map((id) =>
@@ -205,6 +208,8 @@ const showHookBanner = computed(() => activeTab.value === 'agents' && board.hook
         <span class="chevron" aria-hidden="true">▾</span>
       </button>
     </div>
+
+    <NeedsYou :queue="waiting" :now="now" @open="board.open($event, undefined)" @more="view.tab = 'agents'" />
 
     <LaneTabs v-if="tabs.length > 1" :items="tabs" :model-value="activeTab" @update:model-value="view.tab = $event as Tab" />
 
