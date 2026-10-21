@@ -43,7 +43,7 @@ export interface Settings {
 }
 
 export const DEFAULT_SETTINGS: Settings = {
-  refreshMinutes: 5,
+  refreshMinutes: 1,
   notifications: true,
   accounts: ['@me'],
   organizations: [],

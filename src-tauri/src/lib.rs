@@ -4,6 +4,7 @@ mod hooks;
 mod instance;
 mod launch;
 mod login;
+mod placement;
 mod secret;
 
 use std::process::Command;
@@ -13,8 +14,9 @@ use std::time::{Duration, Instant};
 use tauri::image::Image;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
-use tauri::{AppHandle, Emitter, Manager, TitleBarStyle, WebviewUrl, WebviewWindowBuilder, WindowEvent};
-use tauri_plugin_positioner::{Position, WindowExt};
+use tauri::{AppHandle, Emitter, LogicalPosition, Manager, Rect, TitleBarStyle, WebviewUrl, WebviewWindow, WebviewWindowBuilder, WindowEvent};
+
+use placement::Area;
 
 const PANEL: &str = "panel";
 const SETTINGS: &str = "settings";
@@ -23,6 +25,7 @@ const TRAY: &str = "main";
 const REOPEN_GUARD: Duration = Duration::from_millis(250);
 
 struct LastHidden(Mutex<Option<Instant>>);
+struct TrayIcon(Mutex<Option<Area>>);
 
 fn toggle_panel(app: &AppHandle) {
     let Some(panel) = app.get_webview_window(PANEL) else { return };
@@ -41,10 +44,33 @@ fn toggle_panel(app: &AppHandle) {
     }
 }
 
+fn area(position: (f64, f64), size: (f64, f64)) -> Area {
+    Area { x: position.0, y: position.1, width: size.0, height: size.1 }
+}
+
+fn panel_origin(app: &AppHandle, panel: &WebviewWindow) -> Option<(f64, f64)> {
+    let width = panel.outer_size().ok()?.width as f64 / panel.scale_factor().ok()?;
+    let screen = |m: &tauri::Monitor| {
+        (area((m.position().x as f64, m.position().y as f64), (m.size().width as f64, m.size().height as f64)), m.scale_factor())
+    };
+    let icon = *app.state::<TrayIcon>().0.lock().unwrap();
+    let screens: Vec<_> = app.available_monitors().ok()?.iter().map(screen).collect();
+    icon.and_then(|icon| placement::below_icon(icon, &screens, width)).or_else(|| {
+        let (primary, scale) = screen(&app.primary_monitor().ok()??);
+        Some(placement::top_right(primary, scale, width))
+    })
+}
+
+fn remember_icon(app: &AppHandle, rect: &Rect) {
+    let position = rect.position.to_physical::<f64>(1.0);
+    let size = rect.size.to_physical::<f64>(1.0);
+    *app.state::<TrayIcon>().0.lock().unwrap() = Some(area((position.x, position.y), (size.width, size.height)));
+}
+
 fn show_panel(app: &AppHandle) {
     let Some(panel) = app.get_webview_window(PANEL) else { return };
-    if panel.move_window_constrained(Position::TrayBottomCenter).is_err() {
-        let _ = panel.move_window(Position::TopRight);
+    if let Some((x, y)) = panel_origin(app, &panel) {
+        let _ = panel.set_position(LogicalPosition::new(x, y));
     }
     let _ = panel.show();
     let _ = panel.set_focus();
@@ -162,14 +188,15 @@ fn setup_tray(app: &AppHandle) -> tauri::Result<()> {
         })
         .on_tray_icon_event(|tray, event| {
             let app = tray.app_handle();
-            tauri_plugin_positioner::on_tray_event(app, &event);
-            if let TrayIconEvent::Click {
-                button: MouseButton::Left,
-                button_state: MouseButtonState::Up,
-                ..
-            } = event
-            {
-                toggle_panel(app);
+            match event {
+                TrayIconEvent::Click { rect, button, button_state, .. } => {
+                    remember_icon(app, &rect);
+                    if button == MouseButton::Left && button_state == MouseButtonState::Up {
+                        toggle_panel(app);
+                    }
+                }
+                TrayIconEvent::Enter { rect, .. } | TrayIconEvent::Move { rect, .. } => remember_icon(app, &rect),
+                _ => {}
             }
         })
         .build(app)?;
@@ -179,12 +206,12 @@ fn setup_tray(app: &AppHandle) -> tauri::Result<()> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-        .plugin(tauri_plugin_positioner::init())
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(LastHidden(Mutex::new(None)))
+        .manage(TrayIcon(Mutex::new(None)))
         .manage(hooks::Listener::default())
         .invoke_handler(tauri::generate_handler![
             gh::gh_token,

@@ -83,7 +83,7 @@ interface Source {
 }
 ```
 
-- **Bağımlılıklar minimum:** Vue 3, Vite, TypeScript, Vitest. Rust tarafında `tauri-plugin-http`, `-notification`, `-positioner`, `-store`, `keyring`, `tiny_http`. GitHub GraphQL webview `fetch`'i ile çağrılır (CORS ve rate-limit header'ları açık); Forge ve Sentry `tauri-plugin-http` ile. Link açma Rust'ta `open_url` (yalnız http/https); hangi host'ların açılabileceğine TS'teki `isOpenable` karar verir (GitHub, Sentry, Forge ve izlenen Forge siteleri). UI kütüphanesi ve state kütüphanesi yok; `reactive()` yeterli.
+- **Bağımlılıklar minimum:** Vue 3, Vite, TypeScript, Vitest. Rust tarafında `tauri-plugin-http`, `-notification`, `-store`, `-updater`, `keyring`, `tiny_http`. Panel menü çubuğu ikonunun altına mantıksal noktalarla yerleşir (`placement.rs`); farklı ölçekli ekranlarda fiziksel piksel karışmaz. GitHub GraphQL webview `fetch`'i ile çağrılır (CORS ve rate-limit header'ları açık); Forge ve Sentry `tauri-plugin-http` ile. Link açma Rust'ta `open_url` (yalnız http/https); hangi host'ların açılabileceğine TS'teki `isOpenable` karar verir (GitHub, Sentry, Forge ve izlenen Forge siteleri). UI kütüphanesi ve state kütüphanesi yok; `reactive()` yeterli.
 - **Depolama:** GHBar gibi düz JSON (`seen.json`, `settings.json`) `tauri-plugin-store` ile. SQLite'a ancak geçmiş sorgulamak gerekirse geçilir.
 - **Gizli bilgiler:** Forge ve Sentry token'ları macOS Keychain'de; diskte düz metin yok.
 

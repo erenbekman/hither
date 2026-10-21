@@ -4,6 +4,7 @@ import { DEFAULT_SETTINGS, isRepoWatched, muteRepo, normalizeSettings, scopeLabe
 describe('normalizeSettings', () => {
   it('fills a fresh install with defaults', () => {
     expect(normalizeSettings({})).toEqual(DEFAULT_SETTINGS)
+    expect(normalizeSettings({}).refreshMinutes).toBe(1)
   })
 
   it('keeps valid values and replaces invalid ones', () => {
