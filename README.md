@@ -1,6 +1,6 @@
 # Hither
 
-What's coming hither, what's gone thither — PRs, deploys and agents in your menu bar.
+Every coding agent that needs you, and every pull request, in your menu bar.
 
 ![Hither's menu bar panel going through the Incoming, Outgoing, Agents and Suggestions lanes](docs/demo.gif)
 
@@ -8,9 +8,18 @@ What's coming hither, what's gone thither — PRs, deploys and agents in your me
 brew install --cask erenbekman/tap/hither
 ```
 
-A macOS menu bar app with four lanes: **Incoming** (PRs and issues waiting on you), **Outgoing** (CI, deploys, production errors), **Agents** (Claude Code and Codex sessions, and agent PRs) and **Suggestions**.
+A macOS menu bar app. When Claude Code or Codex stops to ask for permission or an answer, Hither puts it at the top of the panel, counts it in the menu bar and brings its terminal forward with one shortcut. Next to your agents: the pull requests waiting on you, your checks, deploys and production errors.
 
-All four lanes work: Incoming, Outgoing (CI, Forge deploys, Sentry errors), Agents (Claude Code and Codex sessions, agent pull requests) and Suggestions (one click opens Claude Code in your terminal (iTerm, Terminal, Ghostty or Warp) with an id-only prompt). See [docs/PLAN.md](docs/PLAN.md).
+## Why Hither
+
+- **Agents that need you, first.** A "Needs you" strip lists every waiting agent, longest wait first. The menu bar counts them, and one reminder comes when an agent has waited two minutes.
+- **One shortcut to the right terminal.** ⌥⌘J from any app brings the waiting agent's terminal forward, the exact tab in iTerm and Ghostty; press again for the next agent. Keep the terminal you use: iTerm, Terminal, Ghostty or Warp.
+- **Pull requests the way GHBar shows them.** Review requests, changes requested, merge conflicts, ready to merge, mentions and new activity on your own pull requests; check out a branch from its row.
+- **What happens after you merge.** A red main branch, failed checks, Laravel Forge deploys and new Sentry errors.
+- **One click into Claude Code.** A failed build or deploy becomes a Claude Code session in your terminal, with the deploy log attached.
+- **Yours.** Every lane can be turned off. Nothing leaves your Mac except the calls Hither makes to GitHub, Forge and Sentry. Free and open source (MIT).
+
+More in [docs/PLAN.md](docs/PLAN.md).
 
 ## Install
 

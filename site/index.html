@@ -3,21 +3,21 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Hither — your pull requests, in the menu bar</title>
-    <meta name="description" content="A macOS menu bar app for the pull requests and issues waiting on you, plus your checks, deploys and Claude Code and Codex sessions." />
-    <meta property="og:title" content="Hither — your pull requests, in the menu bar" />
-    <meta property="og:description" content="Pull requests like GHBar, plus checks, deploys and your Claude Code and Codex sessions." />
+    <title>Hither — every agent that needs you, in the menu bar</title>
+    <meta name="description" content="A macOS menu bar app that puts the Claude Code and Codex sessions waiting for you first, one shortcut from their terminal, next to your pull requests, checks and deploys." />
+    <meta property="og:title" content="Hither — every agent that needs you, in the menu bar" />
+    <meta property="og:description" content="Claude Code and Codex waiting for you, first in your menu bar. Plus your pull requests, checks and deploys." />
     <meta property="og:image" content="https://erenbekman.github.io/hither/assets/og.png" />
     <meta property="og:url" content="https://erenbekman.github.io/hither/" />
     <meta name="twitter:card" content="summary_large_image" />
     <link rel="icon" href="assets/favicon.png" />
-    <link rel="stylesheet" href="styles.css?v=8" />
+    <link rel="stylesheet" href="styles.css?v=9" />
   </head>
   <body>
     <div class="menubar">
       <span class="menubar-left" aria-hidden="true"><b>Finder</b><span>File</span><span>Edit</span><span>View</span></span>
       <span class="menubar-right">
-        <button class="tray" type="button" data-tray-button aria-label="Show or hide the Hither panel"><svg class="tray-mark" viewBox="0 0 36 36"><circle cx="9" cy="18" r="5" fill="currentColor" /><rect x="14" y="16" width="7" height="4" fill="currentColor" /><circle cx="27" cy="18" r="4.5" fill="none" stroke="currentColor" stroke-width="3" /></svg><span class="tray-count num" data-tray>6</span></button>
+        <button class="tray" type="button" data-tray-button aria-label="Show or hide the Hither panel"><svg class="tray-mark" viewBox="0 0 36 36"><circle cx="9" cy="18" r="5" fill="currentColor" /><rect x="14" y="16" width="7" height="4" fill="currentColor" /><circle cx="27" cy="18" r="4.5" fill="none" stroke="currentColor" stroke-width="3" /></svg><span class="tray-count num" data-tray>2</span></button>
         <span class="clock num" aria-hidden="true">Wed 21:50</span>
       </span>
     </div>
@@ -26,8 +26,8 @@
       <section class="hero">
         <div class="pitch">
           <img class="app-icon" src="assets/icon.png" alt="" width="64" height="64" />
-          <h1>Your pull requests, in the menu bar. <span>And everything after.</span></h1>
-          <p class="lede">Reviews and pull requests like GHBar — plus your checks, deploys, and Claude Code and Codex sessions.</p>
+          <h1>Every agent that needs you. <span>And every pull request.</span></h1>
+          <p class="lede">Claude Code and Codex waiting for your answer, first in your menu bar. <kbd>⌥⌘J</kbd> brings the right terminal forward. Your pull requests, checks and deploys sit right next to them.</p>
           <div class="actions">
             <a class="button primary" href="https://github.com/erenbekman/hither/releases/latest/download/Hither.dmg">Download for Mac</a>
             <button class="button code" type="button" data-copy="brew install --cask erenbekman/tap/hither">
@@ -57,6 +57,7 @@
             <hr />
             <button role="menuitem" type="button" data-quit>Quit Hither<kbd>⌘Q</kbd></button>
           </div>
+          <section class="needs-you" aria-label="Agents waiting on you" data-needs-you></section>
           <nav class="tabs" role="tablist" data-tabs></nav>
           <div class="list" data-list></div>
           <footer class="panel-foot">
@@ -67,6 +68,10 @@
       </section>
 
       <section class="lanes" aria-label="What Hither shows">
+        <button class="lane-card" type="button" data-show="agents">
+          <span class="lane-title">Agents</span>
+          <span>Claude Code or Codex waiting for you, longest wait first. <kbd>⌥⌘J</kbd> from any app brings its terminal forward.</span>
+        </button>
         <button class="lane-card" type="button" data-show="incoming">
           <span class="lane-title">Pull requests</span>
           <span>What waits on you: reviews, changes, mentions, your own pull requests. The calm list you know from GHBar.</span>
@@ -74,10 +79,6 @@
         <button class="lane-card" type="button" data-show="outgoing">
           <span class="lane-title">Checks &amp; deploys</span>
           <span>A red main branch, failed checks, Forge deploys and new Sentry errors — what happens after you merge.</span>
-        </button>
-        <button class="lane-card" type="button" data-show="agents">
-          <span class="lane-title">Agents</span>
-          <span>Claude Code or Codex waiting for you. One click brings the right terminal tab forward.</span>
         </button>
       </section>
 
@@ -108,6 +109,6 @@
       </p>
     </footer>
 
-    <script src="app.js?v=6"></script>
+    <script src="app.js?v=7"></script>
   </body>
 </html>

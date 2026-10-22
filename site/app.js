@@ -30,8 +30,8 @@ const LANES = {
   agents: {
     label: 'Agents',
     rows: [
-      { title: 'Claude needs your permission to use Bash', chip: ['Waiting', 'orange'], detail: 'api · Fix flaky checkout test · iTerm', age: '12m', icon: tile('✳', 'claude'), unseen: true, loud: true },
-      { title: 'Codex needs your permission to use shell', chip: ['Waiting', 'orange'], detail: 'Codex · billing · Ghostty', age: '2m', icon: tile('◎', 'gray'), unseen: false, loud: true },
+      { title: 'Claude needs your permission to use Bash', chip: ['Waiting', 'orange'], detail: 'api · Fix flaky checkout test · iTerm', age: '12m', icon: tile('✳', 'claude'), unseen: true, loud: true, waiting: ['Claude · api', 'needs your permission to use Bash'] },
+      { title: 'Codex needs your permission to use shell', chip: ['Waiting', 'orange'], detail: 'Codex · billing · Ghostty', age: '2m', icon: tile('◎', 'gray'), unseen: false, loud: true, waiting: ['Codex · billing', 'needs your permission to use shell'] },
       { title: 'Add missing indexes to the orders table', chip: ['PR ready', 'green'], detail: 'api #430 by claude', age: '40m', icon: avatar('claude'), unseen: false, loud: true },
       { title: 'Migrate to Vite 8', chip: ['Working', 'gray'], detail: 'web · iTerm', age: '3m', icon: tile('✳', 'claude'), unseen: false, loud: false },
     ],
@@ -47,6 +47,7 @@ const LANES = {
 }
 
 const tabs = document.querySelector('[data-tabs]')
+const needsYou = document.querySelector('[data-needs-you]')
 const list = document.querySelector('[data-list]')
 const tray = document.querySelector('[data-tray]')
 const markSeen = document.querySelector('[data-mark-seen]')
@@ -69,6 +70,7 @@ const el = (tag, className, text) => {
 
 const newIn = (lane) => (LANES[lane].rows ?? []).filter((row) => row.unseen && row.loud).length
 const totalIn = (lane) => (LANES[lane].rows ?? LANES[lane].cards).length
+const waiting = () => LANES.agents.rows.filter((row) => row.waiting)
 
 function renderTabs() {
   tabs.replaceChildren(
@@ -84,7 +86,26 @@ function renderTabs() {
       return tab
     }),
   )
-  tray.textContent = String(['incoming', 'outgoing', 'agents'].reduce((sum, id) => sum + newIn(id), 0))
+  tray.textContent = String(waiting().length)
+}
+
+function renderNeedsYou() {
+  const agents = waiting()
+  needsYou.hidden = agents.length === 0
+  const heading = el('h2', 'heading', 'Needs you ')
+  heading.append(el('span', 'num', String(agents.length)))
+  needsYou.replaceChildren(
+    heading,
+    ...agents.map((row) => {
+      const button = el('button', 'waiting')
+      button.type = 'button'
+      const text = el('span', 'text')
+      text.append(el('span', 'who', row.waiting[0]), el('span', 'what', row.waiting[1]))
+      button.append(el('span', 'dot'), text, el('span', 'age num', row.age))
+      button.addEventListener('click', () => show('agents'))
+      return button
+    }),
+  )
 }
 
 function iconFor(icon) {
@@ -127,6 +148,7 @@ function renderCards(items) {
 
 function render() {
   renderTabs()
+  renderNeedsYou()
   const lane = LANES[current]
   list.replaceChildren(...(lane.rows ? renderRows(lane.rows) : renderCards(lane.cards)))
   markSeen.hidden = !(lane.rows ?? []).some((row) => row.unseen)

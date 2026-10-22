@@ -142,6 +142,7 @@ h1 {
   font-weight: 700;
   line-height: 1.06;
   letter-spacing: -0.03em;
+  text-wrap: balance;
 }
 
 h1 span {
@@ -376,6 +377,92 @@ h1 span {
 .panel-closed[hidden],
 .panel[hidden] {
   display: none;
+}
+
+.needs-you {
+  display: flex;
+  flex-direction: column;
+  padding: 2px 0 6px;
+  border-bottom: 0.5px solid var(--separator);
+}
+
+.needs-you[hidden] {
+  display: none;
+}
+
+.needs-you .heading {
+  margin: 0;
+  padding: 4px 16px 2px;
+  color: var(--fg-3);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.needs-you .heading .num,
+.needs-you .age {
+  color: var(--orange);
+}
+
+.waiting {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: calc(100% - 12px);
+  margin: 0 6px;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  text-align: left;
+}
+
+.waiting:hover {
+  background: var(--fill-hover);
+}
+
+.waiting .dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  margin-top: 5px;
+  border-radius: 50%;
+  background: var(--orange);
+}
+
+.waiting .text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.waiting .who {
+  color: var(--fg);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.waiting .what {
+  overflow: hidden;
+  color: var(--fg-2);
+  font-size: 11.5px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.waiting .age {
+  flex: none;
+  font-size: 11.5px;
+}
+
+.lede kbd,
+.lane-card kbd {
+  padding: 1px 5px;
+  border-radius: 5px;
+  background: var(--fill);
+  font-family: inherit;
+  font-size: 0.92em;
 }
 
 .tabs {

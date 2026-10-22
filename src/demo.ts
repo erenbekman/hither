@@ -149,7 +149,7 @@ function sentry(now: Date): Signal[] {
 }
 
 function agents(now: Date): Signal[] {
-  const session = (id: string, state: string, title: string, folder: string, sessionTitle: string, minutes: number): Signal => ({
+  const session = (id: string, state: string, title: string, folder: string, sessionTitle: string, minutes: number, agent?: string): Signal => ({
     id: `session:${id}`,
     source: 'claude-code',
     lane: 'agents',
@@ -158,10 +158,11 @@ function agents(now: Date): Signal[] {
     project: folder,
     title,
     at: minutesAgo(now, minutes),
-    meta: { cwd: `/Users/you/code/${folder}`, sessionTitle, state },
+    meta: { cwd: `/Users/you/code/${folder}`, sessionTitle, state, agent },
   })
   return [
     session('a', 'waiting', 'Claude needs your permission to use Bash', 'api', 'Fix flaky checkout test', 12),
+    session('d', 'waiting', 'Codex needs your permission to use apply_patch', 'billing', 'Retry failed webhooks', 4, 'codex'),
     session('b', 'running', 'Working', 'web', 'Migrate to Vite 8', 3),
     session('c', 'done', 'Turn finished', 'billing', 'Invoice export timezone', 8),
   ]
