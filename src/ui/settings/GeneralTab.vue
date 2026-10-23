@@ -17,7 +17,7 @@ const REMINDERS = [1, 2, 5, 10]
 const LANES: { id: LaneId; label: string; hint: string }[] = [
   { id: 'incoming', label: 'Incoming', hint: 'Pull requests and issues waiting on you' },
   { id: 'outgoing', label: 'Outgoing', hint: 'Your checks, deploys and production errors' },
-  { id: 'agents', label: 'Agents', hint: 'Claude Code and Codex sessions, agent pull requests' },
+  { id: 'agents', label: 'Agents', hint: 'Coding agent sessions and agent pull requests' },
   { id: 'suggestions', label: 'Suggestions', hint: 'One-click next steps, such as fixing a red build in Claude' },
 ]
 const NOTIFYING: { lane: Lane; label: string }[] = [

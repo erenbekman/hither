@@ -91,12 +91,12 @@ export function hookStatus(settings: Json, url: string, token: string): HookStat
   return current ? 'installed' : 'outdated'
 }
 
-export const codexCommand = (url: string, token: string) =>
+export const codexCommand = (url: string, token: string, agent = 'codex') =>
   [
     '/usr/bin/curl -sS -m 2 -o /dev/null',
     `-H 'Authorization: Bearer ${token}'`,
     "-H 'Content-Type: application/json'",
-    "-H 'X-Hither-Agent: codex'",
+    `-H 'X-Hither-Agent: ${agent}'`,
     `-H "${TERMINAL_HEADER}: $TERM_PROGRAM"`,
     `-H "${TERMINAL_SESSION_HEADER}: $ITERM_SESSION_ID"`,
     `--data-binary @- ${url} || true`,
@@ -140,3 +140,41 @@ export function blockedByAllowList(settings: Json, url: string): boolean {
 }
 
 export const serializeClaudeSettings = (settings: Json) => `${JSON.stringify(settings, null, 2)}\n`
+
+export const COPILOT_HOOK_EVENTS = ['SessionStart', 'UserPromptSubmit', 'PermissionRequest', 'notification', 'PostToolUse', 'Stop', 'ErrorOccurred', 'SessionEnd'] as const
+
+export function copilotHooks(url: string, token: string): string {
+  const hook = { type: 'command', bash: codexCommand(url, token, 'copilot'), timeoutSec: HOOK_TIMEOUT_SECONDS }
+  return serializeClaudeSettings({ version: 1, hooks: Object.fromEntries(COPILOT_HOOK_EVENTS.map((event) => [event, [hook]])) })
+}
+
+export function opencodePlugin(url: string, token: string): string {
+  const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', 'X-Hither-Agent': 'opencode' }
+  return [
+    `const HITHER_URL = ${JSON.stringify(url)}`,
+    `const HITHER_HEADERS = ${JSON.stringify(headers)}`,
+    '',
+    'export const Hither = async ({ directory }) => {',
+    '  const send = async (name, sessionID, extra = {}) => {',
+    '    if (!sessionID) return',
+    `    const headers = { ...HITHER_HEADERS, ${JSON.stringify(TERMINAL_HEADER)}: process.env.TERM_PROGRAM ?? '', ${JSON.stringify(TERMINAL_SESSION_HEADER)}: process.env.ITERM_SESSION_ID ?? '' }`,
+    '    const body = JSON.stringify({ session_id: sessionID, hook_event_name: name, cwd: directory, ...extra })',
+    '    await fetch(HITHER_URL, { method: "POST", headers, body, signal: AbortSignal.timeout(2000) }).catch(() => undefined)',
+    '  }',
+    '  return {',
+    '    event: async ({ event }) => {',
+    '      const p = event.properties ?? {}',
+    '      if (event.type === "session.status" && p.status?.type === "busy") await send("UserPromptSubmit", p.sessionID)',
+    '      if (event.type === "session.status" && p.status?.type === "idle") await send("Stop", p.sessionID)',
+    '      if (event.type === "permission.asked") await send("PermissionRequest", p.sessionID, { tool_name: p.action })',
+    '      if (event.type === "permission.replied") await send("PostToolUse", p.sessionID)',
+    '      if (event.type === "session.error") await send("StopFailure", p.sessionID, { error: p.error?.data?.message ?? p.error?.name ?? "error" })',
+    '      if (event.type === "session.deleted") await send("SessionEnd", p.info?.id ?? p.sessionID)',
+    '    },',
+    '  }',
+    '}',
+    '',
+  ].join('\n')
+}
+
+export const ownedFileStatus = (text: string | null, expected: string): HookStatus => (text === null ? 'missing' : text === expected ? 'installed' : 'outdated')

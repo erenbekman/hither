@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   addCodexHooks,
   addHooks,
@@ -6,6 +6,10 @@ import {
   CODEX_HOOK_EVENTS,
   codexCommand,
   codexHookStatus,
+  COPILOT_HOOK_EVENTS,
+  copilotHooks,
+  opencodePlugin,
+  ownedFileStatus,
   HOOK_EVENTS,
   hookStatus,
   hookUrl,
@@ -167,3 +171,70 @@ describe('Codex hooks', () => {
   })
 })
 
+
+describe('Copilot CLI hooks', () => {
+  it('runs the same background curl as Codex on every event Hither follows, under its own name', () => {
+    const file = JSON.parse(copilotHooks(url, 'abc123'))
+    expect(file.version).toBe(1)
+    expect(Object.keys(file.hooks).sort()).toEqual([...COPILOT_HOOK_EVENTS].sort())
+    for (const hooks of Object.values(file.hooks)) {
+      expect(hooks).toEqual([{ type: 'command', bash: codexCommand(url, 'abc123', 'copilot'), timeoutSec: 5 }])
+    }
+    expect(codexCommand(url, 'abc123', 'copilot')).toContain("-H 'X-Hither-Agent: copilot'")
+  })
+
+  it('knows its own file is installed only while it matches the current token', () => {
+    expect(ownedFileStatus(null, copilotHooks(url, 'abc123'))).toBe('missing')
+    expect(ownedFileStatus(copilotHooks(url, 'abc123'), copilotHooks(url, 'abc123'))).toBe('installed')
+    expect(ownedFileStatus(copilotHooks(url, 'old'), copilotHooks(url, 'abc123'))).toBe('outdated')
+  })
+})
+
+describe('opencode plugin', () => {
+  async function load(token: string) {
+    const module = (await import(`data:text/javascript,${encodeURIComponent(opencodePlugin(url, token))}`)) as { Hither: (context: { directory: string }) => Promise<{ event: (input: { event: unknown }) => Promise<void> }> }
+    return module.Hither({ directory: '/code/api' })
+  }
+
+  it('turns opencode events into the events Hither already understands', async () => {
+    const fetchFn = vi.fn(async (_target: string, _init: RequestInit) => new Response(null))
+    vi.stubGlobal('fetch', fetchFn)
+    vi.stubEnv('TERM_PROGRAM', 'iTerm.app')
+    const plugin = await load('abc123')
+    const events = [
+      { type: 'session.status', properties: { sessionID: 'ses_1', status: { type: 'busy' } } },
+      { type: 'permission.asked', properties: { id: 'per_1', sessionID: 'ses_1', action: 'bash', resources: ['ls'] } },
+      { type: 'permission.replied', properties: { sessionID: 'ses_1', requestID: 'per_1', reply: 'once' } },
+      { type: 'session.status', properties: { sessionID: 'ses_1', status: { type: 'retry', attempt: 1, message: 'busy', next: 2 } } },
+      { type: 'session.status', properties: { sessionID: 'ses_1', status: { type: 'idle' } } },
+      { type: 'session.error', properties: { sessionID: 'ses_1', error: { name: 'ProviderAuthError', data: { message: 'Invalid API key' } } } },
+      { type: 'session.deleted', properties: { info: { id: 'ses_1' } } },
+      { type: 'file.edited', properties: { file: 'a.ts' } },
+      { type: 'session.status', properties: { status: { type: 'busy' } } },
+    ]
+    for (const event of events) await plugin.event({ event })
+    const sent = fetchFn.mock.calls.map(([target, init]) => {
+      const { headers, body } = init as RequestInit & { headers: Record<string, string> }
+      expect(target).toBe(url)
+      expect(headers).toMatchObject({ Authorization: 'Bearer abc123', 'X-Hither-Agent': 'opencode', 'X-Hither-Terminal': 'iTerm.app' })
+      return JSON.parse(String(body))
+    })
+    expect(sent).toEqual([
+      { session_id: 'ses_1', hook_event_name: 'UserPromptSubmit', cwd: '/code/api' },
+      { session_id: 'ses_1', hook_event_name: 'PermissionRequest', cwd: '/code/api', tool_name: 'bash' },
+      { session_id: 'ses_1', hook_event_name: 'PostToolUse', cwd: '/code/api' },
+      { session_id: 'ses_1', hook_event_name: 'Stop', cwd: '/code/api' },
+      { session_id: 'ses_1', hook_event_name: 'StopFailure', cwd: '/code/api', error: 'Invalid API key' },
+      { session_id: 'ses_1', hook_event_name: 'SessionEnd', cwd: '/code/api' },
+    ])
+    vi.unstubAllGlobals()
+    vi.unstubAllEnvs()
+  })
+
+  it('never breaks opencode when Hither is not running', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => Promise.reject(new TypeError('connection refused'))))
+    const plugin = await load('quiet')
+    await expect(plugin.event({ event: { type: 'session.status', properties: { sessionID: 'ses_1', status: { type: 'idle' } } } })).resolves.toBeUndefined()
+    vi.unstubAllGlobals()
+  })
+})

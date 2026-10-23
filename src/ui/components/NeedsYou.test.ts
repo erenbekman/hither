@@ -1,6 +1,7 @@
 import { expect, it } from 'vitest'
 import { createSSRApp, h } from 'vue'
 import { renderToString } from 'vue/server-renderer'
+import { agentName } from '../../core/sessions'
 import type { WaitingAgent } from '../../core/waiting'
 import NeedsYou from './NeedsYou.vue'
 
@@ -9,7 +10,7 @@ const agent = (id: string, minutes: number, name?: string): WaitingAgent => ({
   id: `session:${id}`,
   agent: name,
   project: id,
-  message: `${name === 'codex' ? 'Codex' : 'Claude'} needs your permission to use Bash`,
+  message: `${agentName(name)} needs your permission to use Bash`,
   since: new Date(now.getTime() - minutes * 60_000).toISOString(),
   waitedMs: minutes * 60_000,
 })
@@ -25,6 +26,7 @@ it('lists up to three waiting agents with how long they have waited, then a coun
   expect(html.match(/data-row/g)).toHaveLength(3)
   expect(html).toContain('Claude · billing')
   expect(html).toContain('Codex · api')
+  expect(html).toContain('Copilot · web')
   expect(html).toContain('4m')
   expect(html).toContain('>needs your permission to use Bash<')
   expect(html).not.toContain('Claude needs')

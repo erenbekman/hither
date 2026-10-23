@@ -9,7 +9,12 @@ import SentryConnection from './SentryConnection.vue'
 import SettingRow from './SettingRow.vue'
 import { lines, useSettings } from './context'
 
-const { state, save, changeHooks, updateCodexHooks, openTemplates } = useSettings()
+const { state, save, changeHooks, updateCodexHooks, updateAgentHooks, openTemplates } = useSettings()
+
+const MORE_AGENTS = [
+  { id: 'copilot', label: 'Copilot CLI' },
+  { id: 'opencode', label: 'opencode' },
+] as const
 
 const HOOK_LABELS: Record<HookStatus, string> = {
   installed: 'Hooks installed',
@@ -51,6 +56,18 @@ const parseLinks = (value: string) =>
       </button>
       <button v-if="state.codexHooks && state.codexHooks !== 'missing'" class="button" @click="updateCodexHooks(false)">Remove</button>
     </SettingRow>
+    <template v-for="agent in MORE_AGENTS" :key="agent.id">
+      <SettingRow
+        v-if="state.agentHooks[agent.id] && state.agentHooks[agent.id] !== 'unavailable'"
+        :label="`${agent.label} · Beta`"
+        :hint="HOOK_LABELS[state.agentHooks[agent.id] as HookStatus]"
+      >
+        <button v-if="state.agentHooks[agent.id] !== 'installed'" class="button primary" @click="updateAgentHooks(agent.id, true)">
+          {{ state.agentHooks[agent.id] === 'outdated' ? 'Update' : 'Install' }}
+        </button>
+        <button v-if="state.agentHooks[agent.id] !== 'missing'" class="button" @click="updateAgentHooks(agent.id, false)">Remove</button>
+      </SettingRow>
+    </template>
     <SettingRow label="Terminal" hint="Where Open in Claude and Checkout start">
       <select :value="state.settings.terminal" @change="save({ terminal: text($event) as Terminal })">
         <option v-for="terminal in TERMINALS" :key="terminal" :value="terminal">{{ terminal }}</option>

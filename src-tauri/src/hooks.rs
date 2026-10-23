@@ -12,16 +12,19 @@ use tiny_http::{Method, Response, Server};
 
 pub const PORT: u16 = 47811;
 const MAX_BODY: u64 = 8 * 1024 * 1024;
+const AGENTS: [&str; 3] = ["codex", "copilot", "opencode"];
 
 #[derive(Deserialize, Serialize, Clone)]
 struct HookEvent {
+    #[serde(alias = "sessionId")]
     session_id: String,
     hook_event_name: String,
     cwd: Option<String>,
     notification_type: Option<String>,
     message: Option<String>,
     title: Option<String>,
-    error: Option<String>,
+    error: Option<serde_json::Value>,
+    recoverable: Option<bool>,
     reason: Option<String>,
     source: Option<String>,
     session_title: Option<String>,
@@ -50,6 +53,18 @@ fn terminal_name(value: &str) -> Option<String> {
     plain(value, "")
 }
 
+fn agent_name(value: &str) -> Option<String> {
+    AGENTS.contains(&value).then(|| value.to_string())
+}
+
+fn error_text(error: serde_json::Value) -> Option<serde_json::Value> {
+    match error {
+        serde_json::Value::String(_) => Some(error),
+        serde_json::Value::Object(fields) => fields.get("message").filter(|m| m.is_string()).cloned(),
+        _ => None,
+    }
+}
+
 fn header(request: &tiny_http::Request, name: &'static str) -> Option<String> {
     request.headers().iter().find(|h| h.field.equiv(name)).map(|h| h.value.as_str().to_string())
 }
@@ -72,7 +87,8 @@ fn serve(server: Server, token: Arc<Mutex<String>>, app: AppHandle) {
                 Ok(mut event) => {
                     event.terminal = header(&request, "X-Hither-Terminal").and_then(|v| terminal_name(&v));
                     event.terminal_session = header(&request, "X-Hither-Terminal-Session").and_then(|v| plain(&v, ":"));
-                    event.agent = header(&request, "X-Hither-Agent").filter(|v| v == "codex");
+                    event.agent = header(&request, "X-Hither-Agent").and_then(|v| agent_name(&v));
+                    event.error = event.error.and_then(error_text);
                     let _ = app.emit("agent-event", event);
                     200
                 }
@@ -96,22 +112,30 @@ pub fn start_hook_listener(app: AppHandle, listener: State<Listener>, token: Str
     Ok(PORT)
 }
 
+fn installed(home: &str, dir: &str, file: &str, name: &str) -> Result<PathBuf, String> {
+    let dir = Path::new(home).join(dir);
+    dir.is_dir().then(|| dir.join(file)).ok_or_else(|| format!("{name} is not installed"))
+}
+
 fn config_path(agent: &str) -> Result<PathBuf, String> {
     let home = std::env::var("HOME").map_err(|_| "HOME is not set".to_string())?;
     match agent {
         "claude" => Ok(Path::new(&home).join(".claude/settings.json")),
-        "codex" => {
-            let dir = Path::new(&home).join(".codex");
-            dir.is_dir().then(|| dir.join("hooks.json")).ok_or_else(|| "Codex is not installed".to_string())
-        }
+        "codex" => installed(&home, ".codex", "hooks.json", "Codex"),
+        "copilot" => installed(&home, ".copilot", "hooks/hither.json", "Copilot CLI"),
+        "opencode" => installed(&home, ".config/opencode", "plugins/hither.js", "opencode"),
         _ => Err(format!("unknown agent {agent}")),
     }
 }
 
-fn write_with_backup(path: &Path, content: &str, stamp: u64) -> std::io::Result<Option<PathBuf>> {
+fn owns_file(agent: &str) -> bool {
+    agent == "copilot" || agent == "opencode"
+}
+
+fn write_with_backup(path: &Path, content: &str, stamp: u64, keep_backup: bool) -> std::io::Result<Option<PathBuf>> {
     let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
     let mode = fs::metadata(path).map(|m| m.permissions().mode() & 0o600).unwrap_or(0o600);
-    let backup = if path.exists() {
+    let backup = if path.exists() && keep_backup {
         let backup = path.with_file_name(format!("{name}.hither-backup-{stamp}"));
         fs::copy(path, &backup)?;
         Some(backup)
@@ -143,9 +167,21 @@ pub fn agent_config_read(agent: String) -> Result<Option<String>, String> {
 #[tauri::command]
 pub fn agent_config_write(agent: String, content: String) -> Result<Option<String>, String> {
     let stamp = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
-    write_with_backup(&config_path(&agent)?, &content, stamp)
+    write_with_backup(&config_path(&agent)?, &content, stamp, !owns_file(&agent))
         .map(|backup| backup.map(|p| p.display().to_string()))
         .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn agent_config_remove(agent: String) -> Result<(), String> {
+    if !owns_file(&agent) {
+        return Err(format!("Hither does not own the {agent} configuration"));
+    }
+    match fs::remove_file(config_path(&agent)?) {
+        Ok(()) => Ok(()),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(e) => Err(e.to_string()),
+    }
 }
 
 #[cfg(test)]
@@ -167,7 +203,7 @@ mod tests {
         fs::create_dir_all(&dir).unwrap();
         let path = dir.join("hooks.json");
         fs::write(&path, "{}").unwrap();
-        let backup = write_with_backup(&path, "{\"hooks\":{}}", 7).unwrap().unwrap();
+        let backup = write_with_backup(&path, "{\"hooks\":{}}", 7, true).unwrap().unwrap();
         assert!(backup.ends_with("hooks.json.hither-backup-7"));
     }
 
@@ -186,7 +222,7 @@ mod tests {
         let path = scratch("backup");
         fs::create_dir_all(path.parent().unwrap()).unwrap();
         fs::write(&path, "{\"old\":true}").unwrap();
-        let backup = write_with_backup(&path, "{\"new\":true}", 42).unwrap().unwrap();
+        let backup = write_with_backup(&path, "{\"new\":true}", 42, true).unwrap().unwrap();
         assert_eq!(fs::read_to_string(&backup).unwrap(), "{\"old\":true}");
         assert_eq!(fs::read_to_string(&path).unwrap(), "{\"new\":true}");
         assert!(backup.ends_with("settings.json.hither-backup-42"));
@@ -195,7 +231,7 @@ mod tests {
     #[test]
     fn creates_the_file_without_a_backup() {
         let path = scratch("create");
-        assert_eq!(write_with_backup(&path, "{}", 1).unwrap(), None);
+        assert_eq!(write_with_backup(&path, "{}", 1, true).unwrap(), None);
         assert_eq!(fs::read_to_string(&path).unwrap(), "{}");
         assert_eq!(fs::metadata(&path).unwrap().permissions().mode() & 0o777, 0o600);
         assert_eq!(fs::metadata(path.parent().unwrap()).unwrap().permissions().mode() & 0o777, 0o700);
@@ -208,7 +244,7 @@ mod tests {
             fs::create_dir_all(path.parent().unwrap()).unwrap();
             fs::write(&path, "{}").unwrap();
             fs::set_permissions(&path, fs::Permissions::from_mode(before)).unwrap();
-            write_with_backup(&path, "{\"a\":1}", 7).unwrap();
+            write_with_backup(&path, "{\"a\":1}", 7, true).unwrap();
             assert_eq!(fs::metadata(&path).unwrap().permissions().mode() & 0o777, after);
         }
     }
@@ -218,8 +254,37 @@ mod tests {
         let path = scratch("stale");
         fs::create_dir_all(path.parent().unwrap()).unwrap();
         fs::write(path.with_file_name("settings.json.hither-tmp"), "junk").unwrap();
-        write_with_backup(&path, "{}", 3).unwrap();
+        write_with_backup(&path, "{}", 3, true).unwrap();
         assert_eq!(fs::read_to_string(&path).unwrap(), "{}");
+    }
+
+    #[test]
+    fn knows_copilot_and_opencode_and_reads_their_events() {
+        assert_eq!(agent_name("copilot").as_deref(), Some("copilot"));
+        assert_eq!(agent_name("opencode").as_deref(), Some("opencode"));
+        assert_eq!(agent_name("cursor"), None);
+        let event: HookEvent = serde_json::from_str(
+            r#"{"sessionId":"s","hook_event_name":"Notification","notification_type":"permission_prompt","timestamp":1}"#,
+        )
+        .unwrap();
+        assert_eq!(event.session_id, "s");
+        let failed: HookEvent = serde_json::from_str(
+            r#"{"session_id":"s","hook_event_name":"ErrorOccurred","error":{"message":"Model unavailable","name":"Error"},"recoverable":false}"#,
+        )
+        .unwrap();
+        assert_eq!(failed.error.and_then(error_text), Some(serde_json::Value::String("Model unavailable".into())));
+        assert_eq!(failed.recoverable, Some(false));
+        assert_eq!(error_text(serde_json::json!(42)), None);
+    }
+
+    #[test]
+    fn replaces_its_own_files_without_backups() {
+        let path = scratch("owned").with_file_name("hither.json");
+        write_with_backup(&path, "one", 1, false).unwrap();
+        assert_eq!(write_with_backup(&path, "two", 2, false).unwrap(), None);
+        assert_eq!(fs::read_to_string(&path).unwrap(), "two");
+        assert_eq!(fs::read_dir(path.parent().unwrap()).unwrap().count(), 1);
+        assert_eq!(fs::metadata(&path).unwrap().permissions().mode() & 0o777, 0o600);
     }
 
     #[test]

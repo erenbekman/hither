@@ -8,7 +8,7 @@ Every coding agent that needs you, and every pull request, in your menu bar.
 brew install --cask erenbekman/tap/hither
 ```
 
-A macOS menu bar app. When Claude Code or Codex stops to ask for permission or an answer, Hither puts it at the top of the panel, counts it in the menu bar and brings its terminal forward with one shortcut. Next to your agents: the pull requests waiting on you, your checks, deploys and production errors.
+A macOS menu bar app. When Claude Code or Codex (and, in beta, Copilot CLI or opencode) stops to ask for permission or an answer, Hither puts it at the top of the panel, counts it in the menu bar and brings its terminal forward with one shortcut. Next to your agents: the pull requests waiting on you, your checks, deploys and production errors.
 
 ## Why Hither
 

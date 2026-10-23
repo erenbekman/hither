@@ -229,6 +229,7 @@ pub fn run() {
             hooks::start_hook_listener,
             hooks::agent_config_read,
             hooks::agent_config_write,
+            hooks::agent_config_remove,
             launch::git_repo,
             launch::launch_claude,
             launch::checkout_pr,

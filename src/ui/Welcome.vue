@@ -20,7 +20,7 @@ const STATUS: Record<HookStatus, string> = { installed: 'Installed', missing: 'N
 const LANES: { id: LaneId; label: string; hint: string }[] = [
   { id: 'incoming', label: 'Incoming', hint: 'Pull requests and issues waiting on you' },
   { id: 'outgoing', label: 'Outgoing', hint: 'Your checks, deploys and production errors' },
-  { id: 'agents', label: 'Agents', hint: 'Claude Code and Codex sessions' },
+  { id: 'agents', label: 'Agents', hint: 'Claude Code, Codex and other coding agents' },
   { id: 'suggestions', label: 'Suggestions', hint: 'One-click next steps in Claude' },
 ]
 
@@ -41,7 +41,7 @@ onMounted(async () => {
     <header class="intro" data-tauri-drag-region>
       <Mark :size="40" />
       <h1>Welcome to Hither</h1>
-      <p>What waits on you, how your checks and deploys went, and your Claude Code and Codex sessions — in the menu bar.</p>
+      <p>What waits on you, how your checks and deploys went, and the coding agents waiting on you — in the menu bar.</p>
     </header>
 
     <div class="content">

@@ -9,7 +9,7 @@ import { FORGE_TOKEN_KEY, listForgeOrganizations, listForgeServers } from '../..
 import { fetchOrganizations } from '../../sources/github'
 import { SENTRY_TOKEN_KEY } from '../../sources/sentry'
 import { githubToken } from '../github-auth'
-import { changeCodexHooks, installHooks, readCodexHookStatus, readHookStatus, uninstallHooks } from '../hooks'
+import { changeAgentHooks, changeCodexHooks, installHooks, readAgentHookStatus, readCodexHookStatus, readHookStatus, uninstallHooks, type OwnedAgent } from '../hooks'
 import { announceSettingsChanged, onAccountChanged, onSettingsChanged, openSettingsStore, readSettings, REPOS_FILE, writeSettings } from '../settings-store'
 import { startUpdates } from '../update-runtime'
 
@@ -22,6 +22,7 @@ export interface SettingsState {
   tokens: Record<string, boolean>
   hooks?: HookStatus
   codexHooks?: HookStatus | 'unavailable'
+  agentHooks: Partial<Record<OwnedAgent, HookStatus | 'unavailable'>>
   hooksBlocked: boolean
   backup?: string
   launchAtLogin?: boolean
@@ -41,6 +42,7 @@ export function createSettingsContext() {
     forgeOrgs: [],
     forgeServers: [],
     tokens: {},
+    agentHooks: {},
     hooksBlocked: false,
     loaded: false,
     errors: [],
@@ -122,6 +124,19 @@ export function createSettingsContext() {
     await refreshCodexHooks()
   }
 
+  async function refreshAgentHooks() {
+    for (const agent of ['copilot', 'opencode'] as const) {
+      await attempt(async () => {
+        state.agentHooks[agent] = await readAgentHookStatus(agent)
+      })
+    }
+  }
+
+  async function updateAgentHooks(agent: OwnedAgent, install: boolean) {
+    await attempt(() => changeAgentHooks(agent, install))
+    await refreshAgentHooks()
+  }
+
   async function changeHooks(install: boolean) {
     await attempt(async () => {
       state.backup = (await (install ? installHooks() : uninstallHooks())) ?? undefined
@@ -169,6 +184,7 @@ export function createSettingsContext() {
     })
     await refreshHookStatus()
     await refreshCodexHooks()
+    await refreshAgentHooks()
     await loadForge()
   }
 
@@ -182,6 +198,7 @@ export function createSettingsContext() {
     chooseForgeOrg,
     changeHooks,
     updateCodexHooks,
+    updateAgentHooks,
     changeLaunchAtLogin,
     openTemplates: () => attempt(openTemplates),
     dismissError: (index: number) => state.errors.splice(index, 1),

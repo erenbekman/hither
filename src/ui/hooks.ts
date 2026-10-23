@@ -3,6 +3,9 @@ import {
   addHooks,
   blockedByAllowList,
   codexHookStatus,
+  copilotHooks,
+  opencodePlugin,
+  ownedFileStatus,
   hookStatus,
   hookUrl,
   parseClaudeSettings,
@@ -10,7 +13,7 @@ import {
   serializeClaudeSettings,
   type HookStatus,
 } from '../core/claude-settings'
-import { agentConfigRead, agentConfigWrite, secretGet, secretSet } from '../native'
+import { agentConfigRead, agentConfigRemove, agentConfigWrite, secretGet, secretSet } from '../native'
 
 export const HOOK_TOKEN_KEY = 'hook-token'
 export const HOOK_PORT = 47811
@@ -57,4 +60,27 @@ export async function changeCodexHooks(install: boolean): Promise<string | null>
   const url = hookUrl(HOOK_PORT)
   const next = install ? addCodexHooks(settings, url, await hookToken()) : removeHooks(settings, url)
   return agentConfigWrite('codex', serializeClaudeSettings(next))
+}
+
+export type OwnedAgent = 'copilot' | 'opencode'
+
+const OWNED: Record<OwnedAgent, { file: (url: string, token: string) => string; missing: string }> = {
+  copilot: { file: copilotHooks, missing: 'Copilot CLI is not installed' },
+  opencode: { file: opencodePlugin, missing: 'opencode is not installed' },
+}
+
+export async function readAgentHookStatus(agent: OwnedAgent): Promise<HookStatus | 'unavailable'> {
+  let text: string | null
+  try {
+    text = await agentConfigRead(agent)
+  } catch (error) {
+    if (error === OWNED[agent].missing) return 'unavailable'
+    throw error
+  }
+  return ownedFileStatus(text, OWNED[agent].file(hookUrl(HOOK_PORT), await hookToken()))
+}
+
+export async function changeAgentHooks(agent: OwnedAgent, install: boolean): Promise<void> {
+  if (install) await agentConfigWrite(agent, OWNED[agent].file(hookUrl(HOOK_PORT), await hookToken()))
+  else await agentConfigRemove(agent)
 }

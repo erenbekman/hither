@@ -9,6 +9,7 @@ export interface HookEvent {
   message?: string | null
   title?: string | null
   error?: string | null
+  recoverable?: boolean | null
   reason?: string | null
   source?: string | null
   session_title?: string | null
@@ -20,6 +21,10 @@ export interface HookEvent {
 
 export type SessionState = 'running' | 'waiting' | 'done' | 'failed'
 
+export const AGENTS = ['codex', 'copilot', 'opencode'] as const
+export type Agent = (typeof AGENTS)[number]
+const NAMES: Record<Agent, string> = { codex: 'Codex', copilot: 'Copilot', opencode: 'opencode' }
+
 export interface Session {
   id: string
   cwd: string
@@ -28,7 +33,7 @@ export interface Session {
   updatedAt: string
   title?: string
   message?: string
-  agent?: 'codex'
+  agent?: Agent
   terminal?: Terminal
   terminalSession?: string
 }
@@ -40,7 +45,11 @@ export const FINISHED_TURN_MS = 30 * 60_000
 
 const WAITING = new Set(['permission_prompt', 'idle_prompt', 'agent_needs_input', 'elicitation_dialog', 'elicitation_url_dialog'])
 
-export const agentName = (agent: unknown) => (agent === 'codex' ? 'Codex' : 'Claude')
+const knownAgent = (agent: unknown) => AGENTS.find((known) => known === agent)
+export const agentName = (agent: unknown) => {
+  const known = knownAgent(agent)
+  return known ? NAMES[known] : 'Claude'
+}
 
 function transition(session: Session | undefined, event: HookEvent): Pick<Session, 'state'> & { message?: string } | 'end' | undefined {
   switch (event.hook_event_name) {
@@ -60,6 +69,8 @@ function transition(session: Session | undefined, event: HookEvent): Pick<Sessio
       return { state: 'done' }
     case 'StopFailure':
       return { state: 'failed', message: event.error ?? undefined }
+    case 'ErrorOccurred':
+      return event.recoverable ? undefined : { state: 'failed', message: event.error ?? undefined }
     case 'SessionEnd':
       return 'end'
     default:
@@ -78,13 +89,14 @@ export function applyHookEvent(sessions: Sessions, event: HookEvent, now: Date):
   }
   const base: Session = current ?? { id: event.session_id, cwd: event.cwd ?? '', state: 'running', since: at, updatedAt: at }
   const changed = next !== undefined && (next.state !== base.state || next.message !== base.message)
+  const agent = knownAgent(event.agent) ?? base.agent
   result[event.session_id] = {
     ...base,
     cwd: event.cwd ?? base.cwd,
     title: event.session_title ?? base.title,
     terminal: terminalFor(event.terminal) ?? base.terminal,
     terminalSession: event.terminal_session || base.terminalSession,
-    ...(event.agent === 'codex' || base.agent === 'codex' ? { agent: 'codex' as const } : {}),
+    ...(agent ? { agent } : {}),
     updatedAt: at,
     ...(next ? { state: next.state, message: next.message } : {}),
     since: changed || !current ? at : base.since,

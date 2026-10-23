@@ -32,13 +32,13 @@ Her kaynak `src/sources/<kaynak>/` altında, verisini tek tipe (`Signal`, `src/c
 - `src-tauri/src/lib.rs` — tray (Mark All as Seen, Settings, Quit), popover (konum `placement.rs`: ikonun altında, mantıksal noktalarla), ayarlar penceresi, `set_tray` (sayı + normal/alert/error ikon), `open_url`, `copy_text`, `reveal_panel`
 - `src-tauri/src/gh.rs` — `gh_token` (tam yollar → PATH, 5 sn watchdog)
 - `src-tauri/src/secret.rs` — `secret_get/set/delete` (Keychain)
-- `src-tauri/src/hooks.rs` — Claude Code ve Codex hook dinleyicisi (`127.0.0.1:47811`; ajan ve iTerm oturumu header'dan), `agent_config_read/write` (`~/.claude/settings.json`, `~/.codex/hooks.json`; yedekli, atomik, izinleri genişletmez)
+- `src-tauri/src/hooks.rs` — Claude Code, Codex, Copilot CLI ve opencode hook dinleyicisi (`127.0.0.1:47811`; ajan ve iTerm oturumu header'dan), `agent_config_read/write` (`~/.claude/settings.json`, `~/.codex/hooks.json` yedekli; Hither'ın kendi dosyaları `~/.copilot/hooks/hither.json`, `~/.config/opencode/plugins/hither.js` yedeksiz; atomik, izinleri genişletmez), `agent_config_remove` (yalnız bu iki dosya)
 - `src-tauri/src/launch.rs` — seçili terminalde (iTerm, Terminal, Ghostty, Warp) `claude` başlatma, `gh pr checkout`, sekmeye odak (iTerm oturum kimliği, Ghostty klasör; AppleScript, `Entitlements.plist` + `Info.plist`), yalnız okuma araçlı `claude -p`, `git_repo`, şablon dosyaları
 - `src-tauri/src/process.rs` — zaman aşımlı süreç çalıştırıcı ve ikili bulucu (gh, claude)
 - `src/core` — tipler, hatalar, ayarlar, `RefreshGate`, filtreleme, `SeenStore`, bildirim planı, `board` (çok kaynaklı yenileme döngüsü), `recovery` (CI düzeldi), `http`, `openable`, `waiting` (bekleyen ajan kuyruğu, hatırlatma, kısayolla sırayla gezme), `shortcut` (global kısayol metni)
 - `src/sources/github` — sorgu kurucu, GraphQL istemcisi (CI + izlenen branch'ler, profil ve kota dahil), cevap ayrıştırıcı, `githubSource`; `account.ts` kota görünürlüğü ve repo sayaçları (`repos.json`); `activity.ts` GitHub Notifications'tan "New Activity" (yalnız okuma, `If-Modified-Since`)
 - `src/sources/forge`, `src/sources/sentry` — Outgoing adapter'ları; token'lar Keychain'de (`forge-token`, `sentry-token`)
-- `src/sources/claude-code` — Claude Code ve Codex oturumlarından Agents sinyalleri; durum makinesi `core/sessions.ts`, hook birleştirme (Claude `http`, Codex `curl` komutu) `core/claude-settings.ts`
+- `src/sources/claude-code` — Claude Code, Codex, Copilot CLI ve opencode oturumlarından Agents sinyalleri; durum makinesi `core/sessions.ts`, hook dosyaları (Claude `http`, Codex ve Copilot `curl` komutu, opencode `fetch` eklentisi) `core/claude-settings.ts`
 - `src/sources/github/device-flow.ts`, `src/ui/github-auth.ts` — gh olmadan GitHub girişi (OAuth device flow, token Keychain'de `github-token`; yoksa `gh auth token`); `src/ui/Welcome.vue` ilk açılış penceresi
 - `src/lanes.ts` — şerit başına bölüm sırası, başlıklar, "loud" kuralı (bildirim + rozet)
 - `src/core/suggestions.ts` — öneri kuralları; `core/templates.ts` — kimlik-only prompt şablonları; `core/repo.ts` — git remote → owner/name

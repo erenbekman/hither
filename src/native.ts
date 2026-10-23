@@ -10,9 +10,10 @@ export const copyText = (text: string) => invoke<void>('copy_text', { text })
 export const setTray = (count: number, state: TrayState) => invoke<void>('set_tray', { count, state })
 export const revealPanel = () => invoke<void>('reveal_panel')
 export const startHookListener = (token: string) => invoke<number>('start_hook_listener', { token })
-export type AgentConfig = 'claude' | 'codex'
+export type AgentConfig = 'claude' | 'codex' | 'copilot' | 'opencode'
 export const agentConfigRead = (agent: AgentConfig) => invoke<string | null>('agent_config_read', { agent })
 export const agentConfigWrite = (agent: AgentConfig, content: string) => invoke<string | null>('agent_config_write', { agent, content })
+export const agentConfigRemove = (agent: 'copilot' | 'opencode') => invoke<void>('agent_config_remove', { agent })
 export interface GitRepo {
   root: string
   remote: string

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { applyHookEvent, pruneSessions, restoreSessions, sessionSignals, type HookEvent, type Sessions } from './sessions'
+import { agentName, applyHookEvent, pruneSessions, restoreSessions, sessionSignals, type HookEvent, type Sessions } from './sessions'
 
 const at = (minute: number) => new Date(Date.UTC(2026, 9, 14, 12, minute))
 const event = (hook_event_name: string, extra: Partial<HookEvent> = {}): HookEvent => ({
@@ -62,6 +62,21 @@ describe('applyHookEvent', () => {
     expect(s).toMatchObject({ state: 'waiting', agent: 'codex', message: 'Codex needs your permission to use shell', terminalSession: 'w0t1p0:9A6B1C2D-0000-4000-8000-ABCDEFABCDEF' })
     const [signal] = sessionSignals({ s1: s }, at(3))
     expect(signal.meta).toMatchObject({ agent: 'codex', terminalSession: 'w0t1p0:9A6B1C2D-0000-4000-8000-ABCDEFABCDEF' })
+  })
+
+  it('follows Copilot CLI and opencode sessions under their own names', () => {
+    const copilot = play([0, event('SessionStart', { agent: 'copilot' })], [2, event('PermissionRequest', { agent: 'copilot', tool_name: 'Bash' })]).s1
+    expect(copilot).toMatchObject({ agent: 'copilot', state: 'waiting', message: 'Copilot needs your permission to use Bash' })
+    const opencode = play([0, event('UserPromptSubmit', { agent: 'opencode' })], [1, event('PermissionRequest', { agent: 'opencode', tool_name: 'bash' })], [2, event('PostToolUse', { agent: 'opencode' })]).s1
+    expect(opencode).toMatchObject({ agent: 'opencode', state: 'running' })
+    expect(play([0, event('SessionStart', { agent: 'cursor' })]).s1.agent).toBeUndefined()
+    expect([agentName('copilot'), agentName('opencode'), agentName(undefined)]).toEqual(['Copilot', 'opencode', 'Claude'])
+  })
+
+  it('fails a Copilot turn only on an error it cannot recover from', () => {
+    const start: [number, HookEvent] = [0, event('SessionStart', { agent: 'copilot' })]
+    expect(play(start, [1, event('ErrorOccurred', { agent: 'copilot', error: 'Rate limited', recoverable: true })]).s1.state).toBe('running')
+    expect(play(start, [1, event('ErrorOccurred', { agent: 'copilot', error: 'Model unavailable', recoverable: false })]).s1).toMatchObject({ state: 'failed', message: 'Model unavailable' })
   })
 
   it('drops the session when it ends', () => {

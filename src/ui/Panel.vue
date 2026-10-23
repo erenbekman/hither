@@ -23,7 +23,7 @@ type Tab = LaneId
 const EMPTY: Record<Lane, string> = {
   incoming: 'Nothing waiting on you.',
   outgoing: 'All green.',
-  agents: 'No Claude Code or Codex sessions, and no agent pull requests.',
+  agents: 'No agent sessions and no agent pull requests.',
 }
 
 const LABELS: Record<Tab, string> = { incoming: 'Incoming', outgoing: 'Outgoing', agents: 'Agents', suggestions: 'Suggestions' }
