@@ -2,7 +2,7 @@
 
 Every coding agent that needs you, and every pull request, in your menu bar.
 
-![Hither's menu bar panel going through the Incoming, Outgoing, Agents and Suggestions lanes](docs/demo.gif)
+![Claude and Codex waiting in Hither's Needs you strip, ⌥⌘J bringing each terminal forward, then the panel's pull requests, checks and deploys](docs/demo.gif)
 
 ```bash
 brew install --cask erenbekman/tap/hither
