@@ -81,7 +81,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEFDNjNEQjU5QzFCODdCRUEKUldUcWU3akJXZHRqckphZUllK2ZuSG1uQjIrZ3pBdmxoSmVqbko4T0NrQWRQVFl1LzV1akdxWlUK",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEU2NkZCMTAwOEEyMDZDODYKUldTR2JDQ0tBTEZ2NWt1S29taFNaeTUzejQ3b1FaU0FLb1Nta1lCZE05eWNJRm1vWlRyLzdwbmcK",
       "endpoints": [
         "https://github.com/erenbekman/hither/releases/latest/download/latest.json"
       ]
