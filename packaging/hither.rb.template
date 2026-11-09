@@ -21,8 +21,8 @@ cask "hither" do
   ]
 
   caveats <<~EOS
-    If you installed the Claude Code or Codex hooks, remove them first from
-    Hither → Settings → Agents → Remove.
+    If you installed hooks for Claude Code, Codex, Copilot CLI or opencode,
+    remove them first from Hither → Settings → Connections → Remove.
     Tokens stay in your login Keychain under the service "dev.hither.app".
   EOS
 end
