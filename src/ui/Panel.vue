@@ -239,6 +239,17 @@ const showHookBanner = computed(() => activeTab.value === 'agents' && board.hook
     </Banner>
 
     <Banner
+      v-if="board.notifications.blocked && board.settings().notifications"
+      tone="warning"
+      text="macOS is blocking Hither's notifications"
+      detail="Turn on Allow notifications for Hither in System Settings."
+    >
+      <template #action>
+        <button class="button" @click="board.openNotificationSettings()">Open</button>
+      </template>
+    </Banner>
+
+    <Banner
       v-if="showHookBanner"
       tone="action"
       :text="board.hooks.status === 'missing' ? 'Claude Code hooks are not installed' : 'Claude Code hooks are out of date'"

@@ -33,3 +33,6 @@ export const openSettings = () => invoke<void>('open_settings_window')
 export const openWelcome = () => invoke<void>('open_welcome_window')
 export const launchAtLogin = () => invoke<boolean>('launch_at_login')
 export const setLaunchAtLogin = (enabled: boolean) => invoke<void>('set_launch_at_login', { enabled })
+export type NotificationPermission = 'allowed' | 'denied' | 'not-determined' | 'unknown'
+export const notificationPermission = () => invoke<NotificationPermission>('notification_permission')
+export const openNotificationSettings = () => invoke<void>('open_notification_settings')

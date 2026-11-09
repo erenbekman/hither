@@ -4,7 +4,7 @@ import { load as loadStore, type Store } from '@tauri-apps/plugin-store'
 import type { HookStatus } from '../../core/claude-settings'
 import { toAppError, type AppError } from '../../core/errors'
 import { DEFAULT_SETTINGS, normalizeSettings, type Settings } from '../../core/settings'
-import { launchAtLogin, openTemplates, secretDelete, secretGet, secretSet, setLaunchAtLogin } from '../../native'
+import { launchAtLogin, notificationPermission, openNotificationSettings, openTemplates, secretDelete, secretGet, secretSet, setLaunchAtLogin } from '../../native'
 import { FORGE_TOKEN_KEY, listForgeOrganizations, listForgeServers } from '../../sources/forge'
 import { fetchOrganizations } from '../../sources/github'
 import { SENTRY_TOKEN_KEY } from '../../sources/sentry'
@@ -26,6 +26,7 @@ export interface SettingsState {
   hooksBlocked: boolean
   backup?: string
   launchAtLogin?: boolean
+  notificationsBlocked: boolean
   loaded: boolean
   errors: AppError[]
 }
@@ -44,6 +45,7 @@ export function createSettingsContext() {
     tokens: {},
     agentHooks: {},
     hooksBlocked: false,
+    notificationsBlocked: false,
     loaded: false,
     errors: [],
   })
@@ -152,6 +154,12 @@ export function createSettingsContext() {
     })
   }
 
+  async function refreshNotifications() {
+    await attempt(async () => {
+      state.notificationsBlocked = (await notificationPermission()) === 'denied'
+    })
+  }
+
   async function loadOrganizations() {
     state.errors = state.errors.filter((error) => !SIGN_IN_ERRORS.includes(error.kind))
     await attempt(async () => {
@@ -178,6 +186,7 @@ export function createSettingsContext() {
     await attempt(async () => {
       state.launchAtLogin = await launchAtLogin()
     })
+    await refreshNotifications()
     await attempt(async () => {
       const counts = await (await loadStore(REPOS_FILE, { defaults: {}, autoSave: false })).get<Record<string, unknown>>('counts')
       state.knownRepos = Object.fromEntries(Object.entries(counts ?? {}).filter((entry): entry is [string, number] => typeof entry[1] === 'number'))
@@ -200,6 +209,8 @@ export function createSettingsContext() {
     updateCodexHooks,
     updateAgentHooks,
     changeLaunchAtLogin,
+    refreshNotifications,
+    openNotificationSettings: () => attempt(openNotificationSettings),
     openTemplates: () => attempt(openTemplates),
     dismissError: (index: number) => state.errors.splice(index, 1),
     load,

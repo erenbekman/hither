@@ -11,13 +11,27 @@ import { errorText, toAppError, type AppError } from '../core/errors'
 import { canNotify, type NotificationSpec } from '../core/notifications'
 import { isOpenable } from '../core/openable'
 import { SeenStore } from '../core/seen-store'
+import { createTrayBlink } from '../core/tray-blink'
 import { applyHookEvent, pruneSessions, restoreSessions, type HookEvent, type Sessions } from '../core/sessions'
 import { DEFAULT_SETTINGS, isRepoWatched, muteRepo, type LaneId, type Settings } from '../core/settings'
 import { shortcutLabel } from '../core/shortcut'
 import type { Signal, Source } from '../core/types'
 import { nextTurn, reminderDue, reminderKey, reminderNotification, waitingQueue, type Turn } from '../core/waiting'
 import { describe, isAmbient, isLoud, LANE_ORDER, sourceLanes } from '../lanes'
-import { checkoutPullRequest, copyText, focusTerminal, openSettings, openUrl, openWelcome, revealPanel, secretGet, setTray, startHookListener } from '../native'
+import {
+  checkoutPullRequest,
+  copyText,
+  focusTerminal,
+  notificationPermission,
+  openNotificationSettings,
+  openSettings,
+  openUrl,
+  openWelcome,
+  revealPanel,
+  secretGet,
+  setTray,
+  startHookListener,
+} from '../native'
 import { AGENT_SOURCE_ID, claudeCodeSource } from '../sources/claude-code'
 import { CI_RECOVERY, githubSource } from '../sources/github'
 import { countRepos } from '../sources/github/account'
@@ -55,6 +69,8 @@ export function startBoard() {
   let listenerProblem: AppError | undefined
   let hookNotices: string[] = []
   const hooks = reactive<{ status?: HookStatus; busy: boolean }>({ busy: false })
+  const notifications = reactive({ blocked: false })
+  let panelFocused = false
   let storageNotice: string | undefined
   let shortcutNotice: string | undefined
   const agents = claudeCodeSource({
@@ -116,6 +132,15 @@ export function startBoard() {
     if (key === shownTray) return
     shownTray = key
     void setTray(count, tray).catch((error) => report('menu bar', error))
+  }
+  const trayIcon = createTrayBlink(showTray, (run, ms) => void setTimeout(run, ms))
+
+  async function checkNotifications() {
+    try {
+      notifications.blocked = (await notificationPermission()) === 'denied'
+    } catch (error) {
+      report('notifications', error)
+    }
   }
 
   function report(source: string, error: unknown) {
@@ -317,7 +342,9 @@ export function startBoard() {
         void notify(specs).catch((error) => {
           state.problems = [...state.problems, { source: 'notifications', lanes: ['incoming', 'outgoing'], error: toAppError(error) }]
         }),
-      setTray: showTray,
+      setTray: trayIcon.set,
+      blink: trayIcon.blink,
+      watching: () => panelFocused,
       settings: () => current.value,
       order: LANE_ORDER,
       isLoud,
@@ -325,6 +352,7 @@ export function startBoard() {
       describe,
       recovery: CI_RECOVERY,
     })
+    void checkNotifications()
 
     const saved = parseSnapshot(await boardStore.get('snapshot'))
     if (saved) board.restore(saved)
@@ -377,7 +405,11 @@ export function startBoard() {
       else void revealPanel()
     })
     await getCurrentWebviewWindow().onFocusChanged(({ payload: focused }) => {
-      if (focused) void board?.refreshIfOlderThan(OPEN_REFRESH_MS)
+      panelFocused = focused
+      if (!focused) return
+      board?.acknowledge()
+      void checkNotifications()
+      void board?.refreshIfOlderThan(OPEN_REFRESH_MS)
     })
     await listen('mark-all-seen', () => void board?.markAllSeen())
     window.addEventListener('online', () => void board?.refresh())
@@ -403,6 +435,8 @@ export function startBoard() {
     siteHosts,
     hooks,
     installAgentHooks,
+    notifications,
+    openNotificationSettings: () => void openNotificationSettings().catch((error) => report('notifications', error)),
     open,
     showMenu: (targets: Signal[], folders: Record<string, string>) => void showMenu(targets, folders).catch((error) => report('menu', error)),
     showScopeMenu: () => void showScopeMenu().catch((error) => report('menu', error)),

@@ -373,6 +373,42 @@ describe('createBoard', () => {
     expect(failing.deps.setTray).toHaveBeenLastCalledWith(0, 'error')
   })
 
+  it('blinks when something new arrives and keeps the alert icon until the panel opens', async () => {
+    const { deps, board } = setup([fakeSource('github', [ok([signal(1)]), ok([signal(1), signal(2)]), ok([signal(1), signal(2)])])], { blink: vi.fn() })
+    await board.refresh()
+    expect(deps.blink).not.toHaveBeenCalled()
+    expect(deps.setTray).toHaveBeenLastCalledWith(1, 'normal')
+    await board.refresh()
+    expect(deps.blink).toHaveBeenCalledTimes(1)
+    expect(deps.setTray).toHaveBeenLastCalledWith(2, 'alert')
+    await board.refresh()
+    expect(deps.blink).toHaveBeenCalledTimes(1)
+    expect(deps.setTray).toHaveBeenLastCalledWith(2, 'alert')
+    board.acknowledge()
+    expect(deps.setTray).toHaveBeenLastCalledWith(2, 'normal')
+  })
+
+  it('does not blink for quiet items or for what arrives while the panel is open', async () => {
+    const quiet = setup([fakeSource('github', [ok([]), ok([signal(5, 'my-pr')])])], { blink: vi.fn() })
+    await quiet.board.refresh()
+    await quiet.board.refresh()
+    expect(quiet.deps.blink).not.toHaveBeenCalled()
+    const open = setup([fakeSource('github', [ok([]), ok([signal(1)])])], { blink: vi.fn(), watching: () => true })
+    await open.board.refresh()
+    await open.board.refresh()
+    expect(open.deps.blink).not.toHaveBeenCalled()
+    expect(open.deps.setTray).toHaveBeenLastCalledWith(1, 'normal')
+  })
+
+  it('drops the alert icon once everything new is seen', async () => {
+    const { deps, board } = setup([fakeSource('github', [ok([]), ok([signal(1)])])], { blink: vi.fn() })
+    await board.refresh()
+    await board.refresh()
+    expect(deps.setTray).toHaveBeenLastCalledWith(1, 'alert')
+    await board.markSeen([signal(1).id])
+    expect(deps.setTray).toHaveBeenLastCalledWith(0, 'normal')
+  })
+
   it('keeps a new source quiet on its first run even when its signals name another source', async () => {
     const github = fakeSource('github', [ok([signal(1)]), ok([signal(1)]), ok([signal(1)])])
     const activity = fakeSource('github-activity', [ok([signal(2)]), ok([signal(2), signal(3)])])

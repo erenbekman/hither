@@ -4,6 +4,7 @@ mod hooks;
 mod instance;
 mod launch;
 mod login;
+mod notifications;
 mod placement;
 mod secret;
 
@@ -239,6 +240,8 @@ pub fn run() {
             launch::open_templates,
             login::launch_at_login,
             login::set_launch_at_login,
+            notifications::notification_permission,
+            notifications::open_notification_settings,
         ])
         .setup(|app| {
             match instance::acquire(&app.path().app_data_dir()?)? {

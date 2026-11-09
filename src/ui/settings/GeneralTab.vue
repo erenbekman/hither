@@ -11,7 +11,7 @@ import Advanced from './Advanced.vue'
 import SettingRow from './SettingRow.vue'
 import { toggleIn, useSettings } from './context'
 
-const { state, save, updates, changeLaunchAtLogin } = useSettings()
+const { state, save, updates, changeLaunchAtLogin, openNotificationSettings } = useSettings()
 const INTERVALS = [1, 2, 5, 10, 15, 30]
 const REMINDERS = [1, 2, 5, 10]
 const LANES: { id: LaneId; label: string; hint: string }[] = [
@@ -131,6 +131,17 @@ onUnmounted(stopRecording)
       </button>
     </SettingRow>
   </Group>
+  <Banner
+    v-if="state.notificationsBlocked && state.settings.notifications"
+    tone="warning"
+    text="macOS is blocking Hither's notifications"
+    detail="Turn on Allow notifications for Hither in System Settings."
+    class="flush"
+  >
+    <template #action>
+      <button class="button" @click="openNotificationSettings()">Open System Settings</button>
+    </template>
+  </Banner>
   <Banner v-if="updates.state.error" tone="error" :error="updates.state.error" class="flush" />
 
   <Advanced summary="Notifications per lane, quiet hours, sections">

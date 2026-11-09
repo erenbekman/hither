@@ -27,7 +27,7 @@ GHBar 28 Swift dosyası ve yaklaşık 4.300 satır; değerli olan kod değil, he
 | SeenStore.swift | **Görüldü ile bildirildi ayrı kümeler**; ilk açılışta bildirim yağmuru yok ama her şey okunmamış başlar | `core/seen-store.ts` |
 | RefreshGate.swift | Aynı anda tek yenileme; çakışan istek düşmez, kuyruğa girer | `core/refresh-gate.ts` |
 | AppError.swift | Her hata menüde görünür satır; "bakamadım" ≠ "bekleyen yok" | `core/errors.ts` (kaynak başına) |
-| Notifier.swift | İzin ilk gerçek bildirimde istenir; 5'ten fazla öğe tek özet bildirimi olur | Rust `tauri-plugin-notification` |
+| Notifier.swift | İzin ilk gerçek bildirimde istenir; 5'ten fazla öğe tek özet bildirimi olur | Rust `tauri-plugin-notification`; eklenti masaüstünde izni hep "granted" bildirdiği için gerçek durum `notifications.rs` ile okunur, macOS engellediyse panelde ve Settings'te uyarı |
 | TokenProvider.swift | `gh auth token --hostname github.com`; .app PATH'i boş olduğu için tam yollar denenir; 5 sn watchdog | Rust komutu `gh_token` |
 
 Lisans notu: GHBar MIT. Mantığı çeviriyorsak repoya `NOTICE` dosyası ekleyip Mert Çobanov'un telif satırını koruyoruz; README'de esinlenme kaynağı olarak anıyoruz.
@@ -83,7 +83,7 @@ interface Source {
 }
 ```
 
-- **Bağımlılıklar minimum:** Vue 3, Vite, TypeScript, Vitest. Rust tarafında `tauri-plugin-http`, `-notification`, `-store`, `-updater`, `keyring`, `tiny_http`. Panel menü çubuğu ikonunun altına mantıksal noktalarla yerleşir (`placement.rs`); farklı ölçekli ekranlarda fiziksel piksel karışmaz. GitHub GraphQL webview `fetch`'i ile çağrılır (CORS ve rate-limit header'ları açık); Forge ve Sentry `tauri-plugin-http` ile. Link açma Rust'ta `open_url` (yalnız http/https); hangi host'ların açılabileceğine TS'teki `isOpenable` karar verir (GitHub, Sentry, Forge ve izlenen Forge siteleri). UI kütüphanesi ve state kütüphanesi yok; `reactive()` yeterli.
+- **Bağımlılıklar minimum:** Vue 3, Vite, TypeScript, Vitest. Rust tarafında `tauri-plugin-http`, `-notification`, `-store`, `-updater`, `-global-shortcut`, `keyring`, `tiny_http`, `objc2-user-notifications`. Panel menü çubuğu ikonunun altına mantıksal noktalarla yerleşir (`placement.rs`); farklı ölçekli ekranlarda fiziksel piksel karışmaz. GitHub GraphQL webview `fetch`'i ile çağrılır (CORS ve rate-limit header'ları açık); Forge ve Sentry `tauri-plugin-http` ile. Link açma Rust'ta `open_url` (yalnız http/https); hangi host'ların açılabileceğine TS'teki `isOpenable` karar verir (GitHub, Sentry, Forge ve izlenen Forge siteleri). UI kütüphanesi ve state kütüphanesi yok; `reactive()` yeterli.
 - **Depolama:** GHBar gibi düz JSON (`seen.json`, `settings.json`) `tauri-plugin-store` ile. SQLite'a ancak geçmiş sorgulamak gerekirse geçilir.
 - **Gizli bilgiler:** Forge ve Sentry token'ları macOS Keychain'de; diskte düz metin yok.
 

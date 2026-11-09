@@ -30,13 +30,20 @@ async function fitWindow() {
 }
 
 const resize = new ResizeObserver(() => void fitWindow())
+let stopFocus: (() => void) | undefined
 
 onMounted(async () => {
   if (page.value) resize.observe(page.value)
+  stopFocus = await getCurrentWindow().onFocusChanged(({ payload: focused }) => {
+    if (focused) void context.refreshNotifications()
+  })
   await context.load()
   await fitWindow()
 })
-onUnmounted(() => resize.disconnect())
+onUnmounted(() => {
+  resize.disconnect()
+  stopFocus?.()
+})
 </script>
 
 <template>

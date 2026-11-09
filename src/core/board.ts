@@ -88,6 +88,8 @@ export interface BoardDeps {
   saveSeen: (state: SeenState) => Promise<void>
   notify: (specs: NotificationSpec[]) => void
   setTray: (count: number, state: TrayState) => void
+  blink?: () => void
+  watching?: () => boolean
   settings: () => Settings
   order: Record<Lane, readonly string[]>
   isLoud: (signal: Signal) => boolean
@@ -122,6 +124,7 @@ export function createBoard(state: BoardState, deps: BoardDeps) {
   const succeededAt = new Map<string, string>()
   let saveProblem: AppError | undefined
   let lastAttempt = 0
+  let attention = false
   let queued: Set<string> | 'all' | undefined
 
   function updateUnseen() {
@@ -138,6 +141,7 @@ export function createBoard(state: BoardState, deps: BoardDeps) {
         .filter((signal) => state.unseen[signal.id] && deps.isLoud(signal)).length
     }
     state.badge = LANES.reduce((sum, lane) => sum + state.laneBadges[lane], 0)
+    if (state.badge === 0) attention = false
     updateTray()
   }
 
@@ -147,7 +151,7 @@ export function createBoard(state: BoardState, deps: BoardDeps) {
     )
     const waiting = waitingQueue(state.lanes.agents.flatMap((section) => section.signals), now()).length
     const agents = deps.settings().trayCount === 'agents'
-    const alert = critical || (agents && waiting > 0)
+    const alert = critical || attention || (agents && waiting > 0)
     deps.setTray(agents ? waiting : state.badge, alert ? 'alert' : state.problems.length > 0 ? 'error' : 'normal')
   }
 
@@ -248,6 +252,8 @@ export function createBoard(state: BoardState, deps: BoardDeps) {
     const quietIds = new Set([...quietSources].flatMap((id) => (signals.get(id) ?? []).map((signal) => signal.id)))
     const fresh = deps.seen.unnotified(shown.filter((signal) => deps.isLoud(signal) && !quietIds.has(signal.id)))
     deps.seen.markNotified(shown.map((signal) => signal.id))
+    const arrived = fresh.length > 0 && !deps.watching?.()
+    if (arrived) attention = true
     await persist()
     const audible = fresh.filter((signal) => canNotify(settings, signal.lane, at))
     if (audible.length > 0) deps.notify(notificationsFor(audible, deps.describe))
@@ -256,6 +262,7 @@ export function createBoard(state: BoardState, deps: BoardDeps) {
     if (!only && outcomes.some(([, ok]) => ok)) state.lastRefresh = at.toISOString()
     publishStatus()
     updateUnseen()
+    if (arrived) deps.blink?.()
   }
 
   async function refresh(only?: string[]): Promise<void> {
@@ -312,6 +319,10 @@ export function createBoard(state: BoardState, deps: BoardDeps) {
       state.lanes = arrange(deriveRecoveries([...signals.values()].flat(), deps.seen, at, deps.recovery), at)
       publishStatus()
       updateUnseen()
+    },
+    acknowledge() {
+      attention = false
+      updateTray()
     },
     async markAllSeen() {
       deps.seen.markSeen(Object.keys(state.unseen), now())
