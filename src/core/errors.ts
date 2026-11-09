@@ -84,7 +84,7 @@ export function errorText(error: AppError): string {
 
 export type ErrorHint = { command: string } | { text: string }
 
-export function errorHint(error: AppError, canSignIn = GITHUB_CLIENT_ID !== ''): ErrorHint | undefined {
+export function errorHint(error: AppError, canSignIn = GITHUB_CLIENT_ID.length > 0): ErrorHint | undefined {
   switch (error.kind) {
     case 'gh-not-found':
       return canSignIn
